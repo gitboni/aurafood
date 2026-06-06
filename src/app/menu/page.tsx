@@ -659,27 +659,31 @@ function ProductCard({
   onDec: () => void;
 }) {
   return (
-    <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
-      {p.image_url && (
-        <div className="relative h-28 bg-muted overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-300">
-          <Image src={p.image_url} alt={p.name} fill className="object-cover" />
-          {p.featured && (
-            <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0">
-              ⭐
-            </Badge>
-          )}
-        </div>
-      )}
+    <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col py-0 gap-0">
+      {/* Image area — always rendered, covers the full top with a fixed aspect ratio */}
+      <div className="relative aspect-[4/3] w-full bg-muted overflow-hidden shrink-0">
+        {p.image_url ? (
+          <Image
+            src={p.image_url}
+            alt={p.name}
+            fill
+            sizes="(max-width: 640px) 50vw, 200px"
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-100 to-amber-50 dark:from-gray-800 dark:to-gray-700">
+            <span className="text-4xl opacity-40">🍽️</span>
+          </div>
+        )}
+        {p.featured && (
+          <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0 shadow">
+            ⭐ Destacado
+          </Badge>
+        )}
+      </div>
       <div className="p-2.5 flex flex-col flex-1 gap-1.5">
         <div className="flex-1">
-          <div className="flex items-start gap-1">
-            <p className="font-semibold text-sm leading-snug flex-1">{p.name}</p>
-            {!p.image_url && p.featured && (
-              <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1 py-0 shrink-0">
-                ⭐
-              </Badge>
-            )}
-          </div>
+          <p className="font-semibold text-sm leading-snug">{p.name}</p>
           {p.description && (
             <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
               {p.description}
