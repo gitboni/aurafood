@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Product } from "@/lib/types";
+import { Category, Product, Ingredient, ProductRecipe } from "@/lib/types";
 import {
   LayoutDashboard,
   Plus,
@@ -77,6 +77,12 @@ export default function AdminMenuPage() {
   const [prodStock, setProdStock] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  // Recipe state
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [prodRecipes, setProdRecipes] = useState<ProductRecipe[]>([]);
+  const [recipeIngId, setRecipeIngId] = useState("");
+  const [recipeQty, setRecipeQty] = useState("");
+
   const supabase = createClient();
 
   async function uploadImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -98,19 +104,47 @@ export default function AdminMenuPage() {
 
   async function loadData() {
     try {
-      const [catRes, prodRes] = await Promise.all([
+      const [catRes, prodRes, ingRes] = await Promise.all([
         supabase.from("categories").select("*").order("sort_order"),
         supabase.from("products").select("*").order("sort_order"),
+        supabase.from("ingredients").select("*").order("name"),
       ]);
       if (catRes.error) throw catRes.error;
       if (prodRes.error) throw prodRes.error;
       if (catRes.data) setCategories(catRes.data);
       if (prodRes.data) setProducts(prodRes.data);
+      if (ingRes.data) setIngredients(ingRes.data);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadProductRecipes(productId: string) {
+    const { data } = await supabase
+      .from("product_recipes")
+      .select("*, ingredient:ingredients(name, unit)")
+      .eq("product_id", productId);
+    setProdRecipes((data ?? []) as ProductRecipe[]);
+  }
+
+  async function addRecipeItem() {
+    if (!editingProd || !recipeIngId || !recipeQty) return;
+    const { error } = await supabase.from("product_recipes").upsert({
+      product_id: editingProd.id,
+      ingredient_id: recipeIngId,
+      quantity: parseFloat(recipeQty),
+    }, { onConflict: "product_id,ingredient_id" });
+    if (error) { toast.error("Error al guardar receta"); return; }
+    setRecipeIngId(""); setRecipeQty("");
+    loadProductRecipes(editingProd.id);
+    toast.success("Ingrediente agregado a la receta");
+  }
+
+  async function removeRecipeItem(id: string) {
+    await supabase.from("product_recipes").delete().eq("id", id);
+    if (editingProd) loadProductRecipes(editingProd.id);
   }
 
   useEffect(() => {
@@ -168,8 +202,11 @@ export default function AdminMenuPage() {
 
   // Product CRUD
   function openProdDialog(prod?: Product) {
+    setProdRecipes([]);
+    setRecipeIngId(""); setRecipeQty("");
     if (prod) {
       setEditingProd(prod);
+      loadProductRecipes(prod.id);
       setProdName(prod.name);
       setProdDesc(prod.description || "");
       setProdPrice(prod.price.toString());
@@ -572,6 +609,76 @@ export default function AdminMenuPage() {
             <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveProd}>
               {editingProd ? "Guardar Cambios" : "Crear Producto"}
             </Button>
+
+            {/* Recipe section — only shown when editing */}
+            {editingProd && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">
+                    Receta — ingredientes por unidad vendida
+                  </p>
+
+                  {/* Current recipe items */}
+                  {prodRecipes.length > 0 && (
+                    <div className="space-y-2">
+                      {prodRecipes.map((r) => {
+                        const ing = r.ingredient as unknown as { name: string; unit: string } | undefined;
+                        return (
+                          <div key={r.id} className="flex items-center justify-between text-sm bg-muted/50 rounded-lg px-3 py-1.5">
+                            <span>{ing?.name ?? "?"}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground tabular-nums">
+                                {r.quantity} {ing?.unit}
+                              </span>
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive"
+                                onClick={() => removeRecipeItem(r.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add ingredient to recipe */}
+                  {ingredients.length > 0 ? (
+                    <div className="flex gap-2">
+                      <Select value={recipeIngId} onValueChange={(v) => v && setRecipeIngId(v)}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Ingrediente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ingredients.map((i) => (
+                            <SelectItem key={i.id} value={i.id}>
+                              {i.name} ({i.unit})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        placeholder="Cant."
+                        value={recipeQty}
+                        onChange={(e) => setRecipeQty(e.target.value)}
+                        className="w-24"
+                      />
+                      <Button size="sm" variant="outline" onClick={addRecipeItem}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Primero crea ingredientes en{" "}
+                      <a href="/admin/inventory" className="underline text-orange-600">Inventario</a>
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

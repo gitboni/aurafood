@@ -141,6 +141,16 @@ export default function MenuPage() {
       setCustomerTable("");
       setNotes("");
 
+      // Deduct inventory stock (fire-and-forget)
+      fetch("/api/inventory/consume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: order.id,
+          items: savedItems.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
+        }),
+      }).catch(() => {});
+
       if (payOnline) {
         const res = await fetch("/api/payments", {
           method: "POST",

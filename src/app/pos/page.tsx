@@ -196,6 +196,16 @@ export default function POSPage() {
       const fullOrder: Order = { ...order, order_items: insertedItems };
       setReceiptOrder(fullOrder);
       toast.success(`Orden #${order.order_number} creada`);
+
+      // Deduct inventory stock based on product recipes
+      fetch("/api/inventory/consume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: order.id,
+          items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
+        }),
+      }).catch(() => {}); // fire-and-forget, non-blocking
       clearCart();
       setCustomerName("");
       setCustomerTable("");

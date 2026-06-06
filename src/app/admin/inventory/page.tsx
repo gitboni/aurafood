@@ -1,0 +1,455 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Ingredient, StockMovement } from "@/lib/types";
+import {
+  Home, Plus, Pencil, Trash2, LogOut, Loader2, AlertCircle,
+  Package, TrendingDown, TrendingUp, AlertTriangle, History,
+} from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+
+const UNITS = ["g", "kg", "mL", "L", "pza", "porción", "caja", "lata", "bolsa"];
+
+export default function InventoryPage() {
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Ingredient dialog
+  const [showDialog, setShowDialog] = useState(false);
+  const [editing, setEditing] = useState<Ingredient | null>(null);
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("g");
+  const [stock, setStock] = useState("");
+  const [minStock, setMinStock] = useState("");
+  const [costPerUnit, setCostPerUnit] = useState("");
+
+  // Adjustment dialog
+  const [adjustTarget, setAdjustTarget] = useState<Ingredient | null>(null);
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjustType, setAdjustType] = useState<"purchase" | "waste" | "adjustment">("purchase");
+  const [adjustNotes, setAdjustNotes] = useState("");
+
+  // Delete confirm
+  const [deleteTarget, setDeleteTarget] = useState<Ingredient | null>(null);
+
+  const supabase = createClient();
+
+  async function loadData() {
+    try {
+      const [ingRes, movRes] = await Promise.all([
+        supabase.from("ingredients").select("*").order("name"),
+        supabase
+          .from("stock_movements")
+          .select("*, ingredient:ingredients(name, unit)")
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+      if (ingRes.error) throw ingRes.error;
+      if (movRes.error) throw movRes.error;
+      setIngredients(ingRes.data ?? []);
+      setMovements((movRes.data ?? []) as StockMovement[]);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  function openDialog(ing?: Ingredient) {
+    if (ing) {
+      setEditing(ing);
+      setName(ing.name);
+      setUnit(ing.unit);
+      setStock(ing.stock.toString());
+      setMinStock(ing.min_stock.toString());
+      setCostPerUnit(ing.cost_per_unit.toString());
+    } else {
+      setEditing(null);
+      setName(""); setUnit("g"); setStock(""); setMinStock(""); setCostPerUnit("");
+    }
+    setShowDialog(true);
+  }
+
+  async function saveIngredient() {
+    if (!name.trim()) return;
+    const data = {
+      name,
+      unit,
+      stock: parseFloat(stock) || 0,
+      min_stock: parseFloat(minStock) || 0,
+      cost_per_unit: parseFloat(costPerUnit) || 0,
+    };
+    if (editing) {
+      const { error } = await supabase.from("ingredients").update(data).eq("id", editing.id);
+      if (error) { toast.error("Error al actualizar"); return; }
+      toast.success("Ingrediente actualizado");
+    } else {
+      const { error } = await supabase.from("ingredients").insert(data);
+      if (error) { toast.error("Error al crear"); return; }
+      toast.success("Ingrediente creado");
+    }
+    setShowDialog(false);
+    loadData();
+  }
+
+  async function deleteIngredient(ing: Ingredient) {
+    const { error } = await supabase.from("ingredients").delete().eq("id", ing.id);
+    if (error) { toast.error("Error al eliminar"); return; }
+    toast.success("Ingrediente eliminado");
+    setDeleteTarget(null);
+    loadData();
+  }
+
+  async function saveAdjustment() {
+    if (!adjustTarget || !adjustQty) return;
+    const qty = parseFloat(adjustQty);
+    const isAddition = adjustType === "purchase";
+    const movement = {
+      ingredient_id: adjustTarget.id,
+      type: adjustType,
+      quantity: isAddition ? qty : -Math.abs(qty),
+      notes: adjustNotes || null,
+      reference_id: null,
+    };
+    const { error: movErr } = await supabase.from("stock_movements").insert(movement);
+    if (movErr) { toast.error("Error al registrar"); return; }
+
+    const newStock = isAddition
+      ? adjustTarget.stock + qty
+      : Math.max(0, adjustTarget.stock - qty);
+
+    await supabase.from("ingredients").update({ stock: newStock }).eq("id", adjustTarget.id);
+    toast.success("Stock ajustado");
+    setAdjustTarget(null);
+    setAdjustQty(""); setAdjustNotes("");
+    loadData();
+  }
+
+  const lowStock = ingredients.filter((i) => i.stock <= i.min_stock && i.min_stock > 0);
+  const totalCost = ingredients.reduce((s, i) => s + i.stock * i.cost_per_unit, 0);
+
+  const MOVE_LABELS: Record<string, string> = {
+    sale: "Venta",
+    purchase: "Compra",
+    adjustment: "Ajuste",
+    waste: "Merma",
+  };
+  const MOVE_COLOR: Record<string, string> = {
+    sale: "text-red-600",
+    waste: "text-orange-600",
+    purchase: "text-green-600",
+    adjustment: "text-blue-600",
+  };
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <AlertCircle className="h-10 w-10 text-destructive" />
+      <p className="font-semibold">No se pudo cargar el inventario</p>
+      <Button onClick={() => { setError(false); setLoading(true); loadData(); }}>Reintentar</Button>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+        <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
+        <Package className="h-5 w-5 text-emerald-600" />
+        <h1 className="text-xl font-bold">Inventario</h1>
+        <div className="flex-1" />
+        <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
+          <Plus className="h-4 w-4 mr-2" /> Agregar Ingrediente
+        </Button>
+        <Button variant="ghost" size="icon" onClick={async () => {
+          await supabase.auth.signOut();
+          window.location.href = "/login";
+        }}>
+          <LogOut className="h-5 w-5" />
+        </Button>
+      </header>
+
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+
+        {/* KPI cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total ingredientes</CardTitle>
+              <Package className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">{ingredients.length}</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Stock bajo</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${lowStock.length > 0 ? "text-orange-600" : ""}`}>
+                {lowStock.length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Valor total inventario</CardTitle>
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent><div className="text-2xl font-bold">${totalCost.toFixed(2)}</div></CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="ingredients">
+          <TabsList>
+            <TabsTrigger value="ingredients">Ingredientes ({ingredients.length})</TabsTrigger>
+            <TabsTrigger value="movements">
+              Movimientos
+              {lowStock.length > 0 && (
+                <Badge className="ml-2 bg-orange-500 text-white text-[10px]">{lowStock.length} bajo</Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── Ingredients tab ── */}
+          <TabsContent value="ingredients" className="mt-4">
+            {lowStock.length > 0 && (
+              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2 text-sm text-orange-800">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>Stock bajo: <strong>{lowStock.map((i) => i.name).join(", ")}</strong></span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {ingredients.map((ing) => {
+                const isLow = ing.min_stock > 0 && ing.stock <= ing.min_stock;
+                return (
+                  <Card key={ing.id} className={isLow ? "border-orange-300" : ""}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold truncate">{ing.name}</p>
+                          {isLow && (
+                            <Badge className="bg-orange-100 text-orange-700 border-0 text-[10px]">
+                              Stock bajo
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-sm">
+                          <span className={`font-bold ${isLow ? "text-orange-600" : "text-emerald-600"}`}>
+                            {ing.stock.toLocaleString("es-MX", { maximumFractionDigits: 3 })} {ing.unit}
+                          </span>
+                          {ing.min_stock > 0 && (
+                            <span className="text-muted-foreground">
+                              mín: {ing.min_stock} {ing.unit}
+                            </span>
+                          )}
+                          {ing.cost_per_unit > 0 && (
+                            <span className="text-muted-foreground">
+                              ${ing.cost_per_unit}/{ing.unit}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="icon" variant="outline" className="h-8 w-8"
+                          title="Ajustar stock"
+                          onClick={() => { setAdjustTarget(ing); setAdjustQty(""); setAdjustNotes(""); setAdjustType("purchase"); }}>
+                          <TrendingUp className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8"
+                          onClick={() => openDialog(ing)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteTarget(ing)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+              {ingredients.length === 0 && (
+                <p className="text-muted-foreground col-span-2 text-center py-12">
+                  No hay ingredientes. Agrega el primero.
+                </p>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── Movements tab ── */}
+          <TabsContent value="movements" className="mt-4">
+            <div className="space-y-2">
+              {movements.map((m) => {
+                const isPositive = m.quantity > 0;
+                return (
+                  <div key={m.id} className="flex items-center gap-3 p-3 bg-white border rounded-lg">
+                    <div className={`shrink-0 ${isPositive ? "text-green-600" : "text-red-500"}`}>
+                      {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {(m.ingredient as unknown as { name: string })?.name ?? "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {MOVE_LABELS[m.type] ?? m.type}
+                        {m.notes && ` · ${m.notes}`}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`font-bold text-sm ${MOVE_COLOR[m.type]}`}>
+                        {isPositive ? "+" : ""}{m.quantity.toLocaleString("es-MX", { maximumFractionDigits: 3 })}
+                        {" "}{(m.ingredient as unknown as { unit: string })?.unit ?? ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(m.created_at).toLocaleString("es-MX", {
+                          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              {movements.length === 0 && (
+                <p className="text-center text-muted-foreground py-12">
+                  No hay movimientos registrados aún
+                </p>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* ── Ingredient dialog ── */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Editar" : "Nuevo"} Ingrediente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nombre</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Carne molida" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Unidad de medida</Label>
+                <Select value={unit} onValueChange={(v) => v && setUnit(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Stock inicial ({unit})</Label>
+                <Input type="number" min="0" step="0.001" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="0" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Stock mínimo ({unit})</Label>
+                <Input type="number" min="0" step="0.001" value={minStock} onChange={(e) => setMinStock(e.target.value)} placeholder="0" />
+              </div>
+              <div>
+                <Label>Costo por {unit}</Label>
+                <Input type="number" min="0" step="0.01" value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveIngredient}>
+              {editing ? "Guardar Cambios" : "Crear Ingrediente"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Stock adjustment dialog ── */}
+      <Dialog open={!!adjustTarget} onOpenChange={(v) => !v && setAdjustTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajustar Stock — {adjustTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Stock actual: <strong>{adjustTarget?.stock} {adjustTarget?.unit}</strong>
+            </p>
+            <div>
+              <Label>Tipo de movimiento</Label>
+              <Select value={adjustType} onValueChange={(v) => v && setAdjustType(v as typeof adjustType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="purchase">📦 Compra (suma stock)</SelectItem>
+                  <SelectItem value="waste">🗑️ Merma (resta stock)</SelectItem>
+                  <SelectItem value="adjustment">✏️ Ajuste manual (resta stock)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Cantidad ({adjustTarget?.unit})</Label>
+              <Input type="number" min="0.001" step="0.001" value={adjustQty}
+                onChange={(e) => setAdjustQty(e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <Label>Notas (opcional)</Label>
+              <Input value={adjustNotes} onChange={(e) => setAdjustNotes(e.target.value)}
+                placeholder="Ej: Compra a proveedor X" />
+            </div>
+            {adjustTarget && adjustQty && (
+              <div className="text-sm bg-muted px-3 py-2 rounded-lg">
+                Nuevo stock:{" "}
+                <strong>
+                  {adjustType === "purchase"
+                    ? (adjustTarget.stock + parseFloat(adjustQty)).toFixed(3)
+                    : Math.max(0, adjustTarget.stock - parseFloat(adjustQty)).toFixed(3)
+                  } {adjustTarget.unit}
+                </strong>
+              </div>
+            )}
+            <Separator />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAdjustTarget(null)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1 bg-orange-500 hover:bg-orange-600" onClick={saveAdjustment}>
+                Confirmar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Eliminar ingrediente"
+        description={`¿Eliminar "${deleteTarget?.name}"? Se perderá el historial de movimientos vinculado.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => deleteTarget && deleteIngredient(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
+  );
+}

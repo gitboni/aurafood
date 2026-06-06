@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   QrCode,
   BarChart3,
+  Package,
 } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -44,6 +45,13 @@ export default function Home() {
       description: "Ventas e historial",
       icon: BarChart3,
       color: "bg-rose-500",
+    },
+    {
+      href: "/admin/inventory",
+      title: "Inventario",
+      description: "Ingredientes, recetas y stock",
+      icon: Package,
+      color: "bg-emerald-500",
     },
   ];
 
