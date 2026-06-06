@@ -1,14 +1,28 @@
 "use client";
 
 import { create } from "zustand";
-import { CartItem, Product } from "./types";
+import { CartItem, Product, SelectedModifier } from "./types";
+
+// A cart line is uniquely identified by product + the set of modifiers chosen.
+export function lineKeyOf(productId: string, modifiers?: SelectedModifier[]): string {
+  const mods = (modifiers ?? [])
+    .map((m) => m.modifier_id)
+    .sort()
+    .join(",");
+  return mods ? `${productId}::${mods}` : productId;
+}
+
+export function lineUnitPrice(item: CartItem): number {
+  const mods = (item.modifiers ?? []).reduce((s, m) => s + m.price, 0);
+  return item.product.price + mods;
+}
 
 type CartStore = {
   items: CartItem[];
-  addItem: (product: Product) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  updateNotes: (productId: string, notes: string) => void;
+  addItem: (product: Product, modifiers?: SelectedModifier[]) => void;
+  removeItem: (lineKey: string) => void;
+  updateQuantity: (lineKey: string, quantity: number) => void;
+  updateNotes: (lineKey: string, notes: string) => void;
   clearCart: () => void;
   total: () => number;
   count: () => number;
@@ -16,42 +30,45 @@ type CartStore = {
 
 export const useCartStore = create<CartStore>((set, get) => ({
   items: [],
-  addItem: (product) => {
+  addItem: (product, modifiers) => {
+    const key = lineKeyOf(product.id, modifiers);
     const items = get().items;
-    const existing = items.find((i) => i.product.id === product.id);
+    const existing = items.find((i) => lineKeyOf(i.product.id, i.modifiers) === key);
     if (existing) {
       set({
         items: items.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          lineKeyOf(i.product.id, i.modifiers) === key
+            ? { ...i, quantity: i.quantity + 1 }
+            : i
         ),
       });
     } else {
-      set({ items: [...items, { product, quantity: 1, notes: "" }] });
+      set({ items: [...items, { product, quantity: 1, notes: "", modifiers: modifiers ?? [] }] });
     }
   },
-  removeItem: (productId) => {
-    set({ items: get().items.filter((i) => i.product.id !== productId) });
+  removeItem: (lineKey) => {
+    set({ items: get().items.filter((i) => lineKeyOf(i.product.id, i.modifiers) !== lineKey) });
   },
-  updateQuantity: (productId, quantity) => {
+  updateQuantity: (lineKey, quantity) => {
     if (quantity <= 0) {
-      get().removeItem(productId);
+      get().removeItem(lineKey);
       return;
     }
     set({
       items: get().items.map((i) =>
-        i.product.id === productId ? { ...i, quantity } : i
+        lineKeyOf(i.product.id, i.modifiers) === lineKey ? { ...i, quantity } : i
       ),
     });
   },
-  updateNotes: (productId, notes) => {
+  updateNotes: (lineKey, notes) => {
     set({
       items: get().items.map((i) =>
-        i.product.id === productId ? { ...i, notes } : i
+        lineKeyOf(i.product.id, i.modifiers) === lineKey ? { ...i, notes } : i
       ),
     });
   },
   clearCart: () => set({ items: [] }),
   total: () =>
-    get().items.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
+    get().items.reduce((sum, i) => sum + lineUnitPrice(i) * i.quantity, 0),
   count: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 }));

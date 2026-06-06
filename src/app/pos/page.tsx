@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Product, Order } from "@/lib/types";
+import { Category, Product, Order, ModifierGroup, SelectedModifier } from "@/lib/types";
 import {
   ShoppingBag,
   Plus,
@@ -32,7 +32,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Receipt, type PaymentMethod } from "@/components/receipt";
 import { BillingModal } from "@/components/billing-modal";
 import { LowStockAlert } from "@/components/low-stock-alert";
-import { useCartStore } from "@/lib/store";
+import { ModifierPicker } from "@/components/modifier-picker";
+import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -72,6 +73,8 @@ export default function POSPage() {
   const [discountPercent, setDiscountPercent] = useState("");
   const [tipAmount, setTipAmount] = useState("");
   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
+  const [modGroups, setModGroups] = useState<Record<string, ModifierGroup[]>>({});
+  const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
 
   // ── Orders tab state ────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>("sell");
@@ -111,7 +114,31 @@ export default function POSPage() {
       }
     }
     load();
+    loadModifiers();
   }, []);
+
+  // ── Load modifier groups mapped per product ────────────────
+  async function loadModifiers() {
+    const { data, error } = await supabase
+      .from("product_modifier_groups")
+      .select("product_id, modifier_groups(*, modifiers(*))");
+    if (error || !data) return;
+    const map: Record<string, ModifierGroup[]> = {};
+    for (const row of data as unknown as { product_id: string; modifier_groups: ModifierGroup | null }[]) {
+      const g = row.modifier_groups;
+      if (!g) continue;
+      if (g.modifiers) g.modifiers.sort((a, b) => a.sort_order - b.sort_order);
+      (map[row.product_id] ??= []).push(g);
+    }
+    for (const pid of Object.keys(map)) map[pid].sort((a, b) => a.sort_order - b.sort_order);
+    setModGroups(map);
+  }
+
+  // Add a product: open modifier picker if it has groups, else add directly
+  function handleAddProduct(p: Product) {
+    if (modGroups[p.id]?.length) setPickerProduct(p);
+    else addItem(p);
+  }
 
   // ── Load current open shift ─────────────────────────────────
   useEffect(() => {
@@ -250,15 +277,20 @@ export default function POSPage() {
 
       if (orderError) throw orderError;
 
-      const lineItems = items.map((i) => ({
-        order_id: order.id,
-        product_id: i.product.id,
-        product_name: i.product.name,
-        quantity: i.quantity,
-        unit_price: i.product.price,
-        subtotal: i.product.price * i.quantity,
-        notes: i.notes || null,
-      }));
+      const lineItems = items.map((i) => {
+        const unit = lineUnitPrice(i);
+        const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
+        const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
+        return {
+          order_id: order.id,
+          product_id: i.product.id,
+          product_name: i.product.name,
+          quantity: i.quantity,
+          unit_price: unit,
+          subtotal: unit * i.quantity,
+          notes: fullNote || null,
+        };
+      });
 
       const { data: insertedItems, error: itemsError } = await supabase
         .from("order_items")
@@ -382,6 +414,19 @@ export default function POSPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
+      {/* Modifier picker */}
+      {pickerProduct && (
+        <ModifierPicker
+          product={pickerProduct}
+          groups={modGroups[pickerProduct.id] ?? []}
+          onConfirm={(mods: SelectedModifier[]) => {
+            addItem(pickerProduct, mods);
+            setPickerProduct(null);
+          }}
+          onClose={() => setPickerProduct(null)}
+        />
+      )}
+
       {/* Receipt overlay */}
       {receiptOrder && (
         <Receipt
@@ -519,14 +564,20 @@ export default function POSPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {filtered.map((p) => {
                   const inCart = items.find((i) => i.product.id === p.id);
+                  const hasMods = !!modGroups[p.id]?.length;
                   return (
                     <Card
                       key={p.id}
-                      className={`p-3 cursor-pointer hover:shadow-md transition-all ${
+                      className={`p-3 cursor-pointer hover:shadow-md transition-all relative ${
                         inCart ? "ring-2 ring-orange-400" : ""
                       }`}
-                      onClick={() => addItem(p)}
+                      onClick={() => handleAddProduct(p)}
                     >
+                      {hasMods && (
+                        <span className="absolute top-1 right-1 z-10 text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+                          opciones
+                        </span>
+                      )}
                       {p.image_url && (
                         <div className="relative h-20 bg-muted rounded-md mb-2 overflow-hidden">
                           <Image
@@ -572,15 +623,22 @@ export default function POSPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const key = lineKeyOf(item.product.id, item.modifiers);
+                    return (
                     <div
-                      key={item.product.id}
+                      key={key}
                       className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{item.product.name}</p>
+                        {(item.modifiers ?? []).length > 0 && (
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {item.modifiers!.map((m) => m.modifier_name).join(", ")}
+                          </p>
+                        )}
                         <p className="text-sm text-orange-600 font-semibold">
-                          ${(item.product.price * item.quantity).toFixed(2)}
+                          ${(lineUnitPrice(item) * item.quantity).toFixed(2)}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -588,7 +646,7 @@ export default function POSPage() {
                           size="icon"
                           variant="outline"
                           className="h-7 w-7 shrink-0"
-                          onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                          onClick={() => updateQuantity(key, item.quantity - 1)}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -599,7 +657,7 @@ export default function POSPage() {
                           size="icon"
                           variant="outline"
                           className="h-7 w-7 shrink-0"
-                          onClick={() => addItem(item.product)}
+                          onClick={() => addItem(item.product, item.modifiers)}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -607,13 +665,14 @@ export default function POSPage() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7 text-destructive shrink-0"
-                          onClick={() => updateQuantity(item.product.id, 0)}
+                          onClick={() => updateQuantity(key, 0)}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

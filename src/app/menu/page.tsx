@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Product } from "@/lib/types";
+import { Category, Product, ModifierGroup, SelectedModifier } from "@/lib/types";
 import {
   Search,
   ShoppingCart,
@@ -31,7 +31,8 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { useCartStore } from "@/lib/store";
+import { ModifierPicker } from "@/components/modifier-picker";
+import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
 import { toast } from "sonner";
 
 const RESTAURANT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "El Buen Comer";
@@ -53,6 +54,8 @@ export default function MenuPage() {
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
   const [tipPct, setTipPct] = useState(0);
+  const [modGroups, setModGroups] = useState<Record<string, ModifierGroup[]>>({});
+  const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -77,7 +80,29 @@ export default function MenuPage() {
       }
     }
     load();
+    loadModifiers();
   }, []);
+
+  async function loadModifiers() {
+    const { data, error } = await supabase
+      .from("product_modifier_groups")
+      .select("product_id, modifier_groups(*, modifiers(*))");
+    if (error || !data) return;
+    const map: Record<string, ModifierGroup[]> = {};
+    for (const row of data as unknown as { product_id: string; modifier_groups: ModifierGroup | null }[]) {
+      const g = row.modifier_groups;
+      if (!g) continue;
+      if (g.modifiers) g.modifiers.sort((a, b) => a.sort_order - b.sort_order);
+      (map[row.product_id] ??= []).push(g);
+    }
+    for (const pid of Object.keys(map)) map[pid].sort((a, b) => a.sort_order - b.sort_order);
+    setModGroups(map);
+  }
+
+  function handleAdd(p: Product) {
+    if (modGroups[p.id]?.length) setPickerProduct(p);
+    else addItem(p);
+  }
 
   const cartCount = count();
   const cartSubtotal = total();
@@ -126,15 +151,20 @@ export default function MenuPage() {
 
       if (orderError || !order) throw orderError ?? new Error();
 
-      const orderItems = items.map((i) => ({
-        order_id: order.id,
-        product_id: i.product.id,
-        product_name: i.product.name,
-        quantity: i.quantity,
-        unit_price: i.product.price,
-        subtotal: i.product.price * i.quantity,
-        notes: i.notes || null,
-      }));
+      const orderItems = items.map((i) => {
+        const unit = lineUnitPrice(i);
+        const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
+        const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
+        return {
+          order_id: order.id,
+          product_id: i.product.id,
+          product_name: i.product.name,
+          quantity: i.quantity,
+          unit_price: unit,
+          subtotal: unit * i.quantity,
+          notes: fullNote || null,
+        };
+      });
 
       const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
       if (itemsError) throw itemsError;
@@ -304,12 +334,13 @@ export default function MenuPage() {
                   <ProductCard
                     key={p.id}
                     product={p}
+                    hasModifiers={!!modGroups[p.id]?.length}
                     cartItem={items.find((i) => i.product.id === p.id)}
-                    onAdd={() => addItem(p)}
-                    onInc={() => addItem(p)}
+                    onAdd={() => handleAdd(p)}
+                    onInc={() => handleAdd(p)}
                     onDec={() => {
                       const ci = items.find((i) => i.product.id === p.id);
-                      if (ci) updateQuantity(p.id, ci.quantity - 1);
+                      if (ci) updateQuantity(lineKeyOf(ci.product.id, ci.modifiers), ci.quantity - 1);
                     }}
                   />
                 ))}
@@ -381,12 +412,13 @@ export default function MenuPage() {
                     <ProductCard
                       key={p.id}
                       product={p}
+                      hasModifiers={!!modGroups[p.id]?.length}
                       cartItem={items.find((i) => i.product.id === p.id)}
-                      onAdd={() => addItem(p)}
-                      onInc={() => addItem(p)}
+                      onAdd={() => handleAdd(p)}
+                      onInc={() => handleAdd(p)}
                       onDec={() => {
                         const ci = items.find((i) => i.product.id === p.id);
-                        if (ci) updateQuantity(p.id, ci.quantity - 1);
+                        if (ci) updateQuantity(lineKeyOf(ci.product.id, ci.modifiers), ci.quantity - 1);
                       }}
                     />
                   ))}
@@ -429,34 +461,42 @@ export default function MenuPage() {
 
           <ScrollArea className="flex-1 px-4 mt-2">
             <div className="space-y-3 pb-2">
-              {items.map((item) => (
+              {items.map((item) => {
+                const key = lineKeyOf(item.product.id, item.modifiers);
+                return (
                 <div
-                  key={item.product.id}
+                  key={key}
                   className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{item.product.name}</p>
+                    {(item.modifiers ?? []).length > 0 && (
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {item.modifiers!.map((m) => m.modifier_name).join(", ")}
+                      </p>
+                    )}
                     <p className="text-sm text-orange-600 font-semibold">
-                      ${(item.product.price * item.quantity).toFixed(2)}
+                      ${(lineUnitPrice(item) * item.quantity).toFixed(2)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button size="icon" variant="outline" className="h-7 w-7"
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                      onClick={() => updateQuantity(key, item.quantity - 1)}>
                       <Minus className="h-3 w-3" />
                     </Button>
                     <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
                     <Button size="icon" variant="outline" className="h-7 w-7"
-                      onClick={() => addItem(item.product)}>
+                      onClick={() => addItem(item.product, item.modifiers)}>
                       <Plus className="h-3 w-3" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                      onClick={() => removeItem(item.product.id)}>
+                      onClick={() => removeItem(key)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </ScrollArea>
 
@@ -550,6 +590,18 @@ export default function MenuPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {pickerProduct && (
+        <ModifierPicker
+          product={pickerProduct}
+          groups={modGroups[pickerProduct.id] ?? []}
+          onConfirm={(mods: SelectedModifier[]) => {
+            addItem(pickerProduct, mods);
+            setPickerProduct(null);
+          }}
+          onClose={() => setPickerProduct(null)}
+        />
+      )}
     </main>
   );
 }
@@ -567,12 +619,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function ProductCard({
   product: p,
   cartItem,
+  hasModifiers,
   onAdd,
   onInc,
   onDec,
 }: {
   product: Product;
   cartItem: { quantity: number } | undefined;
+  hasModifiers?: boolean;
   onAdd: () => void;
   onInc: () => void;
   onDec: () => void;
@@ -607,7 +661,7 @@ function ProductCard({
         </div>
         <div className="flex items-center justify-between pt-0.5">
           <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
-          {cartItem ? (
+          {cartItem && !hasModifiers ? (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="outline" className="h-6 w-6" onClick={onDec}>
                 <Minus className="h-3 w-3" />
@@ -624,7 +678,7 @@ function ProductCard({
               onClick={onAdd}
             >
               <Plus className="h-3 w-3 mr-1" />
-              Agregar
+              {hasModifiers ? "Elegir" : "Agregar"}
             </Button>
           )}
         </div>
