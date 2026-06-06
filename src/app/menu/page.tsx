@@ -15,6 +15,8 @@ import {
   AlertCircle,
   CreditCard,
   X,
+  Check,
+  ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,6 +48,7 @@ export default function MenuPage() {
   const [error, setError] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<Product | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerTable, setCustomerTable] = useState(() => {
@@ -353,6 +356,7 @@ export default function MenuPage() {
                     product={p}
                     hasModifiers={!!modGroups[p.id]?.length}
                     cartItem={items.find((i) => i.product.id === p.id)}
+                    onImageClick={() => setLightbox(p)}
                     onAdd={() => handleAdd(p)}
                     onInc={() => handleAdd(p)}
                     onDec={() => {
@@ -431,6 +435,7 @@ export default function MenuPage() {
                       product={p}
                       hasModifiers={!!modGroups[p.id]?.length}
                       cartItem={items.find((i) => i.product.id === p.id)}
+                      onImageClick={() => setLightbox(p)}
                       onAdd={() => handleAdd(p)}
                       onInc={() => handleAdd(p)}
                       onDec={() => {
@@ -629,6 +634,53 @@ export default function MenuPage() {
           onClose={() => setPickerProduct(null)}
         />
       )}
+
+      {/* Lightbox — fullscreen photo of a dish */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2"
+            onClick={() => setLightbox(null)}
+            aria-label="Cerrar"
+          >
+            <X className="h-7 w-7" />
+          </button>
+          <div
+            className="relative w-full max-w-lg aspect-square rounded-2xl overflow-hidden bg-gray-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightbox.image_url ? (
+              <Image src={lightbox.image_url} alt={lightbox.name} fill className="object-contain" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-7xl opacity-40">🍽️</div>
+            )}
+          </div>
+          <div
+            className="mt-4 w-full max-w-lg text-white text-center space-y-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-2xl font-bold">{lightbox.name}</h3>
+            {lightbox.description && (
+              <p className="text-sm text-white/70">{lightbox.description}</p>
+            )}
+            <p className="text-orange-400 font-extrabold text-xl pt-1">${lightbox.price.toFixed(2)}</p>
+            <Button
+              size="lg"
+              className="mt-2 bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => {
+                handleAdd(lightbox);
+                setLightbox(null);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              {modGroups[lightbox.id]?.length ? "Elegir opciones" : "Agregar al pedido"}
+            </Button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -647,6 +699,7 @@ function ProductCard({
   product: p,
   cartItem,
   hasModifiers,
+  onImageClick,
   onAdd,
   onInc,
   onDec,
@@ -654,14 +707,33 @@ function ProductCard({
   product: Product;
   cartItem: { quantity: number } | undefined;
   hasModifiers?: boolean;
+  onImageClick?: () => void;
   onAdd: () => void;
   onInc: () => void;
   onDec: () => void;
 }) {
+  const [justAdded, setJustAdded] = useState(false);
+
+  function handleAddClick() {
+    // Haptic feedback on supported mobile devices
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(35);
+    }
+    onAdd();
+    if (!hasModifiers) {
+      setJustAdded(true);
+      setTimeout(() => setJustAdded(false), 900);
+    }
+  }
+
   return (
     <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col py-0 gap-0">
-      {/* Image area — always rendered, covers the full top with a fixed aspect ratio */}
-      <div className="relative aspect-[4/3] w-full bg-muted overflow-hidden shrink-0">
+      {/* Image area — tap to zoom (lightbox) */}
+      <button
+        type="button"
+        onClick={onImageClick}
+        className="relative aspect-[4/3] w-full bg-muted overflow-hidden shrink-0 cursor-zoom-in"
+      >
         {p.image_url ? (
           <Image
             src={p.image_url}
@@ -680,7 +752,11 @@ function ProductCard({
             ⭐ Destacado
           </Badge>
         )}
-      </div>
+        {/* Zoom hint */}
+        <span className="absolute bottom-1.5 right-1.5 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <ZoomIn className="h-3.5 w-3.5" />
+        </span>
+      </button>
       <div className="p-2.5 flex flex-col flex-1 gap-1.5">
         <div className="flex-1">
           <p className="font-semibold text-sm leading-snug">{p.name}</p>
@@ -694,22 +770,33 @@ function ProductCard({
           <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
           {cartItem && !hasModifiers ? (
             <div className="flex items-center gap-1">
-              <Button size="icon" variant="outline" className="h-6 w-6" onClick={onDec}>
+              <Button size="icon" variant="outline" className="h-6 w-6 active:scale-90 transition-transform" onClick={onDec}>
                 <Minus className="h-3 w-3" />
               </Button>
               <span className="w-5 text-center text-xs font-bold">{cartItem.quantity}</span>
-              <Button size="icon" variant="outline" className="h-6 w-6" onClick={onInc}>
+              <Button size="icon" variant="outline" className="h-6 w-6 active:scale-90 transition-transform" onClick={onInc}>
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
           ) : (
             <Button
               size="sm"
-              className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white px-2.5"
-              onClick={onAdd}
+              className={`h-7 text-xs text-white px-2.5 transition-all active:scale-90 ${
+                justAdded ? "bg-green-500 hover:bg-green-500" : "bg-orange-500 hover:bg-orange-600"
+              }`}
+              onClick={handleAddClick}
             >
-              <Plus className="h-3 w-3 mr-1" />
-              {hasModifiers ? "Elegir" : "Agregar"}
+              {justAdded ? (
+                <>
+                  <Check className="h-3 w-3 mr-1" />
+                  Agregado
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3 w-3 mr-1" />
+                  {hasModifiers ? "Elegir" : "Agregar"}
+                </>
+              )}
             </Button>
           )}
         </div>
