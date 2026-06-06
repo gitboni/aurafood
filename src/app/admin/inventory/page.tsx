@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Ingredient, StockMovement } from "@/lib/types";
 import {
   Home, Plus, Pencil, Trash2, LogOut, Loader2, AlertCircle,
-  Package, TrendingDown, TrendingUp, AlertTriangle, History,
+  Package, TrendingDown, TrendingUp, AlertTriangle, History, ShoppingCart, X,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,14 @@ export default function InventoryPage() {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Ingredient | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+
+  // Multi-item purchase dialog
+  const [showPurchase, setShowPurchase] = useState(false);
+  const [purchaseSupplier, setPurchaseSupplier] = useState("");
+  const [purchaseRows, setPurchaseRows] = useState<{ ingredient_id: string; qty: string; unitCost: string }[]>([
+    { ingredient_id: "", qty: "", unitCost: "" },
+  ]);
+  const [savingPurchase, setSavingPurchase] = useState(false);
 
   const supabase = createClient();
 
@@ -187,6 +195,53 @@ export default function InventoryPage() {
     loadData();
   }
 
+  // ── Multi-item purchase (receiving) ────────────────────────
+  function openPurchase() {
+    setPurchaseSupplier("");
+    setPurchaseRows([{ ingredient_id: "", qty: "", unitCost: "" }]);
+    setShowPurchase(true);
+  }
+
+  const purchaseTotal = purchaseRows.reduce(
+    (s, r) => s + (parseFloat(r.qty) || 0) * (parseFloat(r.unitCost) || 0),
+    0
+  );
+
+  async function savePurchase() {
+    const valid = purchaseRows.filter((r) => r.ingredient_id && parseFloat(r.qty) > 0);
+    if (valid.length === 0) { toast.error("Agrega al menos un ingrediente"); return; }
+    setSavingPurchase(true);
+    try {
+      const note = purchaseSupplier ? `Compra: ${purchaseSupplier}` : "Compra";
+      for (const row of valid) {
+        const qty = parseFloat(row.qty);
+        const unitCost = parseFloat(row.unitCost) || 0;
+        const ing = ingredients.find((i) => i.id === row.ingredient_id);
+        if (!ing) continue;
+        await supabase.from("stock_movements").insert({
+          ingredient_id: row.ingredient_id,
+          type: "purchase",
+          quantity: qty,
+          notes: note,
+          reference_id: null,
+        });
+        // Add stock; update cost to latest unit cost when provided
+        const update: { stock: number; cost_per_unit?: number } = {
+          stock: Number(ing.stock) + qty,
+        };
+        if (unitCost > 0) update.cost_per_unit = unitCost;
+        await supabase.from("ingredients").update(update).eq("id", row.ingredient_id);
+      }
+      toast.success(`Compra registrada (${valid.length} ítems · $${purchaseTotal.toFixed(2)})`);
+      setShowPurchase(false);
+      loadData();
+    } catch {
+      toast.error("Error al registrar la compra");
+    } finally {
+      setSavingPurchase(false);
+    }
+  }
+
   const lowStock = ingredients.filter((i) => i.stock <= i.min_stock && i.min_stock > 0);
   const totalCost = ingredients.reduce((s, i) => s + i.stock * i.cost_per_unit, 0);
 
@@ -241,6 +296,9 @@ export default function InventoryPage() {
         <h1 className="text-xl font-bold">Inventario</h1>
         <ThemeToggle />
         <div className="flex-1" />
+        <Button variant="outline" onClick={openPurchase}>
+          <ShoppingCart className="h-4 w-4 mr-2" /> Registrar Compra
+        </Button>
         <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Agregar Ingrediente
         </Button>
@@ -496,6 +554,104 @@ export default function InventoryPage() {
               </Button>
               <Button className="flex-1 bg-orange-500 hover:bg-orange-600" onClick={saveAdjustment}>
                 Confirmar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Multi-item purchase dialog ── */}
+      <Dialog open={showPurchase} onOpenChange={setShowPurchase}>
+        <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-emerald-600" /> Registrar Compra
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Proveedor (opcional)</Label>
+              <Input
+                value={purchaseSupplier}
+                onChange={(e) => setPurchaseSupplier(e.target.value)}
+                placeholder="Ej: Distribuidora La Central"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_80px_90px_28px] gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
+                <span>Ingrediente</span>
+                <span>Cantidad</span>
+                <span>Costo unit.</span>
+                <span></span>
+              </div>
+              {purchaseRows.map((row, idx) => {
+                const ing = ingredients.find((i) => i.id === row.ingredient_id);
+                return (
+                  <div key={idx} className="grid grid-cols-[1fr_80px_90px_28px] gap-2 items-center">
+                    <select
+                      value={row.ingredient_id}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const ingr = ingredients.find((i) => i.id === v);
+                        setPurchaseRows((rows) =>
+                          rows.map((r, i) =>
+                            i === idx
+                              ? { ...r, ingredient_id: v, unitCost: r.unitCost || (ingr ? String(ingr.cost_per_unit) : "") }
+                              : r
+                          )
+                        );
+                      }}
+                      className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <option value="">Seleccionar</option>
+                      {ingredients.map((i) => (
+                        <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
+                      ))}
+                    </select>
+                    <Input
+                      type="number" min="0" step="0.001" placeholder={ing?.unit || "cant"}
+                      value={row.qty}
+                      onChange={(e) => setPurchaseRows((rows) => rows.map((r, i) => i === idx ? { ...r, qty: e.target.value } : r))}
+                    />
+                    <Input
+                      type="number" min="0" step="0.01" placeholder="$"
+                      value={row.unitCost}
+                      onChange={(e) => setPurchaseRows((rows) => rows.map((r, i) => i === idx ? { ...r, unitCost: e.target.value } : r))}
+                    />
+                    <Button
+                      size="icon" variant="ghost" className="h-8 w-8 text-destructive"
+                      onClick={() => setPurchaseRows((rows) => rows.length > 1 ? rows.filter((_, i) => i !== idx) : rows)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+              <Button
+                size="sm" variant="outline" className="w-full"
+                onClick={() => setPurchaseRows((rows) => [...rows, { ingredient_id: "", qty: "", unitCost: "" }])}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Agregar línea
+              </Button>
+            </div>
+
+            <Separator />
+            <div className="flex justify-between items-center font-bold text-lg">
+              <span>Total compra</span>
+              <span className="text-emerald-600">${purchaseTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowPurchase(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={savingPurchase}
+                onClick={savePurchase}
+              >
+                {savingPurchase && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Registrar y sumar al stock
               </Button>
             </div>
           </div>
