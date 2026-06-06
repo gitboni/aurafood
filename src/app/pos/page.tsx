@@ -74,6 +74,10 @@ export default function POSPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFilter, setQrFilter] = useState("all");
   const [billingOrder, setBillingOrder] = useState<Order | null>(null);
+  const [billingReceipt, setBillingReceipt] = useState<{
+    paymentMethod: PaymentMethod;
+    amountPaid?: number;
+  } | null>(null);
   const qrChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const { items, addItem, updateQuantity, clearCart, total, count } = useCartStore();
@@ -243,8 +247,25 @@ export default function POSPage() {
       )}
 
       {/* Billing modal for QR orders */}
-      {billingOrder && (
-        <BillingModal order={billingOrder} onClose={() => setBillingOrder(null)} />
+      {billingOrder && !billingReceipt && (
+        <BillingModal
+          order={billingOrder}
+          onClose={() => setBillingOrder(null)}
+          onPrint={(method, amount) => setBillingReceipt({ paymentMethod: method, amountPaid: amount })}
+        />
+      )}
+
+      {/* Factura de orden QR — rendered by POS directly so it's always on top */}
+      {billingOrder && billingReceipt && (
+        <Receipt
+          order={billingOrder}
+          paymentMethod={billingReceipt.paymentMethod}
+          amountPaid={billingReceipt.amountPaid}
+          onClose={() => {
+            setBillingOrder(null);
+            setBillingReceipt(null);
+          }}
+        />
       )}
 
       {/* ── Header ── */}

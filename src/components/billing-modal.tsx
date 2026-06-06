@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Order } from "@/lib/types";
-import { Receipt, type PaymentMethod } from "@/components/receipt";
+import { type PaymentMethod } from "@/components/receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -14,31 +14,23 @@ const PM_OPTIONS: { value: PaymentMethod; label: string; emoji: string }[] = [
   { value: "transfer", label: "Transf.", emoji: "📱" },
 ];
 
-export function BillingModal({
-  order,
-  onClose,
-}: {
+type Props = {
   order: Order;
   onClose: () => void;
-}) {
+  onPrint: (method: PaymentMethod, amountPaid?: number) => void;
+};
+
+export function BillingModal({ order, onClose, onPrint }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
-  const [printing, setPrinting] = useState(false);
 
   const total = Number(order.total);
   const paid = parseFloat(amountPaid);
 
-  if (printing) {
-    return (
-      <Receipt
-        order={order}
-        paymentMethod={paymentMethod}
-        amountPaid={paymentMethod === "cash" && amountPaid ? paid : undefined}
-        onClose={() => {
-          setPrinting(false);
-          onClose();
-        }}
-      />
+  function handlePrint() {
+    onPrint(
+      paymentMethod,
+      paymentMethod === "cash" && amountPaid ? paid : undefined
     );
   }
 
@@ -168,7 +160,7 @@ export function BillingModal({
 
           <Button
             className="w-full bg-orange-500 hover:bg-orange-600 text-white h-12 text-base font-semibold"
-            onClick={() => setPrinting(true)}
+            onClick={handlePrint}
           >
             <Printer className="h-5 w-5 mr-2" />
             Ver e Imprimir Factura
