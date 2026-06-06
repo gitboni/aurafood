@@ -34,6 +34,8 @@ import { BillingModal } from "@/components/billing-modal";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { ModifierPicker } from "@/components/modifier-picker";
 import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
+import { queueOrder, flushQueue, queuedCount, onQueueChange } from "@/lib/offline-queue";
+import { WifiOff, CloudUpload } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -75,6 +77,8 @@ export default function POSPage() {
   const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
   const [modGroups, setModGroups] = useState<Record<string, ModifierGroup[]>>({});
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingSync, setPendingSync] = useState(0);
 
   // ── Orders tab state ────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>("sell");
@@ -209,6 +213,29 @@ export default function POSPage() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
+  // ── Online/offline tracking + auto-sync queued orders ──────
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    setPendingSync(queuedCount());
+
+    async function trySync() {
+      setIsOnline(navigator.onLine);
+      setPendingSync(queuedCount());
+      if (navigator.onLine && queuedCount() > 0) {
+        const n = await flushQueue(supabase);
+        if (n > 0) {
+          toast.success(`${n} orden${n > 1 ? "es" : ""} sincronizada${n > 1 ? "s" : ""}`);
+          setPendingSync(queuedCount());
+        }
+      }
+    }
+
+    const off = onQueueChange(trySync);
+    trySync();
+    const interval = setInterval(trySync, 15000);
+    return () => { off(); clearInterval(interval); };
+  }, []);
+
   // ── Warn before leaving with items in the cart ─────────────
   useEffect(() => {
     function beforeUnload(e: BeforeUnloadEvent) {
@@ -278,42 +305,71 @@ export default function POSPage() {
   async function submitOrder() {
     if (items.length === 0) return;
     setSending(true);
+
+    // Build payloads once (reused for online insert and offline queue)
+    const orderPayload = {
+      customer_name: customerName || null,
+      customer_table: customerTable || null,
+      status: "pending",
+      subtotal,
+      discount_percent: discPct,
+      discount_amount: discountAmount,
+      tip,
+      total: orderTotal,
+      payment_method: paymentMethod,
+      shift_id: currentShiftId,
+      notes: notes || null,
+      source: "pos",
+    };
+    const baseItems = items.map((i) => {
+      const unit = lineUnitPrice(i);
+      const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
+      const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
+      return {
+        product_id: i.product.id,
+        product_name: i.product.name,
+        quantity: i.quantity,
+        unit_price: unit,
+        subtotal: unit * i.quantity,
+        notes: fullNote || null,
+      };
+    });
+    const consumeList = items.map((i) => ({ product_id: i.product.id, quantity: i.quantity }));
+
+    function resetForm() {
+      clearCart();
+      setCustomerName("");
+      setCustomerTable("");
+      setNotes("");
+      setAmountPaid("");
+      setDiscountPercent("");
+      setTipAmount("");
+    }
+
+    // ── Offline: queue locally, sync on reconnect ──
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      queueOrder({
+        localId: crypto.randomUUID(),
+        order: orderPayload,
+        items: baseItems,
+        consume: consumeList,
+      });
+      toast.success("Sin conexión: orden guardada, se enviará al reconectar", { duration: 6000 });
+      resetForm();
+      setSending(false);
+      return;
+    }
+
     try {
       const { data: order, error: orderError } = await supabase
         .from("orders")
-        .insert({
-          customer_name: customerName || null,
-          customer_table: customerTable || null,
-          status: "pending",
-          subtotal,
-          discount_percent: discPct,
-          discount_amount: discountAmount,
-          tip,
-          total: orderTotal,
-          payment_method: paymentMethod,
-          shift_id: currentShiftId,
-          notes: notes || null,
-          source: "pos",
-        })
+        .insert(orderPayload)
         .select("*, order_items(*)")
         .single();
 
       if (orderError) throw orderError;
 
-      const lineItems = items.map((i) => {
-        const unit = lineUnitPrice(i);
-        const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
-        const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
-        return {
-          order_id: order.id,
-          product_id: i.product.id,
-          product_name: i.product.name,
-          quantity: i.quantity,
-          unit_price: unit,
-          subtotal: unit * i.quantity,
-          notes: fullNote || null,
-        };
-      });
+      const lineItems = baseItems.map((it) => ({ ...it, order_id: order.id }));
 
       const { data: insertedItems, error: itemsError } = await supabase
         .from("order_items")
@@ -329,10 +385,7 @@ export default function POSPage() {
       fetch("/api/inventory/consume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order_id: order.id,
-          items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
-        }),
+        body: JSON.stringify({ order_id: order.id, items: consumeList }),
       })
         .then((r) => r.json())
         .then((data) => {
@@ -346,13 +399,7 @@ export default function POSPage() {
           }
         })
         .catch(() => {});
-      clearCart();
-      setCustomerName("");
-      setCustomerTable("");
-      setNotes("");
-      setAmountPaid("");
-      setDiscountPercent("");
-      setTipAmount("");
+      resetForm();
     } catch {
       toast.error("Error al crear la orden");
     } finally {
@@ -534,6 +581,16 @@ export default function POSPage() {
             <h1 className="text-lg font-bold text-gray-800 hidden md:flex items-center gap-1.5">
               <ShoppingBag className="h-5 w-5 text-orange-500" /> POS — AuraFood
             </h1>
+            {!isOnline && (
+              <span className="flex items-center gap-1.5 bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-lg text-xs font-medium">
+                <WifiOff className="h-3.5 w-3.5" /> Sin conexión
+              </span>
+            )}
+            {pendingSync > 0 && (
+              <span className="flex items-center gap-1.5 bg-blue-100 text-blue-800 border border-blue-300 px-2.5 py-1 rounded-lg text-xs font-medium">
+                <CloudUpload className="h-3.5 w-3.5" /> {pendingSync} por enviar
+              </span>
+            )}
             <LowStockAlert />
             <div className="flex-1" />
             <div className="relative w-56">

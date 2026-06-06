@@ -9,6 +9,7 @@ import {
   Clock,
   Users,
   Sliders,
+  Store,
 } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -76,6 +77,13 @@ export default function Home() {
       description: "Extras y tamaños",
       icon: Sliders,
       color: "bg-teal-500",
+    },
+    {
+      href: "/admin/settings",
+      title: "Ajustes",
+      description: "Logo, datos y ticket",
+      icon: Store,
+      color: "bg-slate-500",
     },
   ];
 

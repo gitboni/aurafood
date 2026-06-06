@@ -35,7 +35,7 @@ import { ModifierPicker } from "@/components/modifier-picker";
 import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
 import { toast } from "sonner";
 
-const RESTAURANT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "El Buen Comer";
+const DEFAULT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "El Buen Comer";
 const ENABLE_PAYMENTS = process.env.NEXT_PUBLIC_ENABLE_PAYMENTS === "true";
 
 export default function MenuPage() {
@@ -56,6 +56,8 @@ export default function MenuPage() {
   const [tipPct, setTipPct] = useState(0);
   const [modGroups, setModGroups] = useState<Record<string, ModifierGroup[]>>({});
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
+  const [restaurantName, setRestaurantName] = useState(DEFAULT_NAME);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -81,6 +83,11 @@ export default function MenuPage() {
     }
     load();
     loadModifiers();
+    supabase.from("settings").select("restaurant_name, logo_url").eq("id", 1).maybeSingle()
+      .then(({ data }) => {
+        if (data?.restaurant_name) setRestaurantName(data.restaurant_name);
+        if (data?.logo_url) setLogoUrl(data.logo_url);
+      });
   }, []);
 
   async function loadModifiers() {
@@ -240,7 +247,14 @@ export default function MenuPage() {
       {/* ── Sticky header ── */}
       <header className="sticky top-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-extrabold tracking-tight">🍽️ {RESTAURANT_NAME}</h1>
+          <h1 className="text-lg font-extrabold tracking-tight flex items-center gap-2">
+            {logoUrl ? (
+              <Image src={logoUrl} alt={restaurantName} width={28} height={28} className="rounded-md object-cover h-7 w-7" />
+            ) : (
+              <span>🍽️</span>
+            )}
+            {restaurantName}
+          </h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button
@@ -311,7 +325,7 @@ export default function MenuPage() {
         {/* Hero */}
         {!search && (
           <div className="text-center space-y-1">
-            <h2 className="text-3xl font-extrabold"><span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">{RESTAURANT_NAME}</span></h2>
+            <h2 className="text-3xl font-extrabold"><span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">{restaurantName}</span></h2>
             <p className="text-sm text-muted-foreground">
               Explora nuestro menú y haz tu pedido
             </p>
@@ -448,7 +462,7 @@ export default function MenuPage() {
       {/* ── Footer ── */}
       <footer className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t py-3 mt-auto">
         <p className="text-center text-xs text-muted-foreground">
-          🍽️ {RESTAURANT_NAME} — Realiza tu pedido y sigue su estado en tiempo real
+          🍽️ {restaurantName} — Realiza tu pedido y sigue su estado en tiempo real
         </p>
       </footer>
 

@@ -80,6 +80,20 @@ export type CartItem = {
   modifiers?: SelectedModifier[];
 };
 
+// ── Settings (branding) ─────────────────────────────────────
+
+export type Settings = {
+  id: number;
+  restaurant_name: string;
+  logo_url: string | null;
+  address: string | null;
+  phone: string | null;
+  rfc: string | null;
+  tax_enabled: boolean;
+  tax_rate: number;
+  updated_at: string;
+};
+
 // ── Roles ───────────────────────────────────────────────────
 
 export type UserRole = "admin" | "cashier" | "kitchen";
