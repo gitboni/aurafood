@@ -10,6 +10,8 @@ import {
   Users,
   Sliders,
   Store,
+  MapPin,
+  UserCircle,
 } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -84,6 +86,20 @@ export default function Home() {
       description: "Logo, datos y ticket",
       icon: Store,
       color: "bg-slate-500",
+    },
+    {
+      href: "/admin/customers",
+      title: "Clientes",
+      description: "Historial y frecuentes",
+      icon: UserCircle,
+      color: "bg-pink-500",
+    },
+    {
+      href: "/admin/locations",
+      title: "Sucursales",
+      description: "Multi-ubicación",
+      icon: MapPin,
+      color: "bg-cyan-500",
     },
   ];
 

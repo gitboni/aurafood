@@ -65,6 +65,24 @@ export default function KitchenPage() {
     setSoundEnabled(next);
   }
 
+  // Average prep time today (created_at → updated_at on delivered orders)
+  const [avgPrepMin, setAvgPrepMin] = useState<number | null>(null);
+
+  async function loadAvgPrep() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from("orders")
+      .select("created_at, updated_at")
+      .eq("status", "delivered")
+      .gte("created_at", today.toISOString());
+    if (!data || data.length === 0) { setAvgPrepMin(null); return; }
+    const mins = data
+      .map((o) => (new Date(o.updated_at).getTime() - new Date(o.created_at).getTime()) / 60000)
+      .filter((m) => m > 0 && m < 24 * 60);
+    if (mins.length === 0) { setAvgPrepMin(null); return; }
+    setAvgPrepMin(mins.reduce((a, b) => a + b, 0) / mins.length);
+  }
+
   async function loadOrders() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -75,6 +93,8 @@ export default function KitchenPage() {
       .in("status", ["pending", "preparing", "ready"])
       .gte("created_at", today.toISOString())
       .order("created_at", { ascending: true });
+
+    loadAvgPrep();
 
     if (data) {
       if (data.length > prevCountRef.current && prevCountRef.current > 0 && soundEnabledRef.current) {
@@ -171,7 +191,12 @@ export default function KitchenPage() {
         <div className="flex-1" />
         <LowStockAlert />
         <ThemeToggle />
-        <div className="flex gap-4 text-sm">
+        <div className="flex gap-4 text-sm items-center">
+          {avgPrepMin != null && (
+            <span className="text-gray-300 bg-gray-700/50 px-2 py-0.5 rounded">
+              ⌀ {Math.round(avgPrepMin)}m prep
+            </span>
+          )}
           <span className="text-yellow-400">● {pending.length} Pendientes</span>
           <span className="text-blue-400">● {preparing.length} Preparando</span>
           <span className="text-green-400">● {ready.length} Listos</span>

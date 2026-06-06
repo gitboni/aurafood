@@ -7,24 +7,34 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const url = new URL(request.url);
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
   const date = url.searchParams.get("date") || new Date().toISOString().split("T")[0];
   const format = url.searchParams.get("format") || "csv";
 
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
+  let startISO: string, endISO: string;
+  if (from && to) {
+    startISO = from;
+    endISO = to;
+  } else {
+    const start = new Date(date); start.setHours(0, 0, 0, 0);
+    const end = new Date(date); end.setHours(23, 59, 59, 999);
+    startISO = start.toISOString();
+    endISO = end.toISOString();
+  }
 
   const { data: orders } = await supabase
     .from("orders")
     .select("*, order_items(*)")
-    .gte("created_at", start.toISOString())
-    .lte("created_at", end.toISOString())
+    .gte("created_at", startISO)
+    .lte("created_at", endISO)
     .order("created_at", { ascending: false });
 
   if (!orders || orders.length === 0) {
-    return NextResponse.json({ error: "No hay órdenes para esta fecha" }, { status: 404 });
+    return NextResponse.json({ error: "No hay órdenes para este rango" }, { status: 404 });
   }
+
+  const filenameTag = from ? `${startISO.split("T")[0]}_${endISO.split("T")[0]}` : date;
 
   if (format === "csv") {
     const headers = ["Orden", "Hora", "Cliente", "Mesa", "Origen", "Estado", "Subtotal", "Descuento", "Propina", "Total", "Método Pago", "Productos"];
@@ -48,7 +58,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename=aurafood-reporte-${date}.csv`,
+        "Content-Disposition": `attachment; filename=aurafood-reporte-${filenameTag}.csv`,
       },
     });
   }

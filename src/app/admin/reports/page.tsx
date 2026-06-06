@@ -34,7 +34,27 @@ const PAGE_SIZE = 50;
 export default function ReportsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [range, setRange] = useState<"day" | "week" | "month">("day");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  // Compute start/end based on range + anchor date
+  function rangeBounds(): { start: string; end: string } {
+    const anchor = new Date(`${date}T00:00:00`);
+    if (range === "day") {
+      const s = new Date(anchor); s.setHours(0, 0, 0, 0);
+      const e = new Date(anchor); e.setHours(23, 59, 59, 999);
+      return { start: s.toISOString(), end: e.toISOString() };
+    }
+    if (range === "week") {
+      const day = anchor.getDay() || 7; // mon=1..sun=7
+      const s = new Date(anchor); s.setDate(anchor.getDate() - (day - 1)); s.setHours(0, 0, 0, 0);
+      const e = new Date(s); e.setDate(s.getDate() + 6); e.setHours(23, 59, 59, 999);
+      return { start: s.toISOString(), end: e.toISOString() };
+    }
+    const s = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 0, 0, 0, 0);
+    const e = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { start: s.toISOString(), end: e.toISOString() };
+  }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [page, setPage] = useState(0);
@@ -50,14 +70,11 @@ export default function ReportsPage() {
 
   const supabase = createClient();
 
-  async function loadOrders(d: string, reset = true) {
+  async function loadOrders(_d: string, reset = true) {
     if (reset) { setLoading(true); setError(false); setPage(0); }
     else setLoadingMore(true);
 
-    const d1 = new Date(`${d}T00:00:00`);
-    const d2 = new Date(`${d}T23:59:59.999`);
-    const startISO = d1.toISOString();
-    const endISO = d2.toISOString();
+    const { start: startISO, end: endISO } = rangeBounds();
     const currentPage = reset ? 0 : page + 1;
     const from = currentPage * PAGE_SIZE;
     const to   = from + PAGE_SIZE - 1;
@@ -89,15 +106,14 @@ export default function ReportsPage() {
     }
   }
 
-  async function loadMovements(d: string) {
-    const d1 = new Date(`${d}T00:00:00`).toISOString();
-    const d2 = new Date(`${d}T23:59:59.999`).toISOString();
+  async function loadMovements(_d: string) {
+    const { start, end } = rangeBounds();
     const { data, error } = await supabase
       .from("stock_movements")
       .select("*, ingredient:ingredients(name, unit)")
       .eq("type", "sale")
-      .gte("created_at", d1)
-      .lte("created_at", d2)
+      .gte("created_at", start)
+      .lte("created_at", end)
       .order("created_at", { ascending: false });
 
     if (!error && data) setMovements(data);
@@ -112,7 +128,7 @@ export default function ReportsPage() {
     }
   }
 
-  useEffect(() => { loadOrders(date); loadMovements(date); loadCosts(); }, [date]);
+  useEffect(() => { loadOrders(date); loadMovements(date); loadCosts(); }, [date, range]);
 
   const delivered   = orders.filter((o) => o.status === "delivered");
   const totalRevenue = delivered.reduce((s, o) => s + Number(o.total), 0);
@@ -198,9 +214,23 @@ export default function ReportsPage() {
         <h1 className="text-xl font-bold">Reportes</h1>
         <div className="flex-1" />
         <ThemeToggle />
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          {(["day", "week", "month"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              {r === "day" ? "Día" : r === "week" ? "Semana" : "Mes"}
+            </button>
+          ))}
+        </div>
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
         <Button variant="outline" size="sm" onClick={() => {
-          window.open(`/api/reports/export?date=${date}&format=csv`, "_blank");
+          const { start, end } = rangeBounds();
+          window.open(`/api/reports/export?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}&format=csv`, "_blank");
         }}>
           📥 Exportar CSV
         </Button>

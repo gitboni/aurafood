@@ -80,6 +80,18 @@ export type CartItem = {
   modifiers?: SelectedModifier[];
 };
 
+// ── Customers (CRM) ─────────────────────────────────────────
+
+export type Customer = {
+  id: string;
+  phone: string | null;
+  name: string | null;
+  total_orders: number;
+  total_spent: number;
+  last_visit: string | null;
+  created_at: string;
+};
+
 // ── Settings (branding) ─────────────────────────────────────
 
 export type Settings = {

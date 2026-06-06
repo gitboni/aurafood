@@ -66,7 +66,10 @@ export default function POSPage() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [errorProducts, setErrorProducts] = useState(false);
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [customerTable, setCustomerTable] = useState("");
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerLookup, setCustomerLookup] = useState<{ name: string; total_orders: number; total_spent: number } | null>(null);
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
@@ -302,13 +305,54 @@ export default function POSPage() {
     return matchCategory && matchSearch;
   });
 
+  // ── CRM: lookup customer by phone ──────────────────────────
+  async function lookupCustomer(phone: string) {
+    const clean = phone.replace(/\D/g, "");
+    if (clean.length < 7) { setCustomerLookup(null); setCustomerId(null); return; }
+    const { data } = await supabase
+      .from("customers")
+      .select("id, name, total_orders, total_spent")
+      .eq("phone", clean)
+      .maybeSingle();
+    if (data) {
+      setCustomerId(data.id);
+      setCustomerLookup({
+        name: data.name ?? "",
+        total_orders: data.total_orders,
+        total_spent: Number(data.total_spent),
+      });
+      if (data.name && !customerName) setCustomerName(data.name);
+    } else {
+      setCustomerLookup(null);
+      setCustomerId(null);
+    }
+  }
+
   async function submitOrder() {
     if (items.length === 0) return;
     setSending(true);
 
+    // Upsert customer if phone present (skip when offline)
+    let cId = customerId;
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (cleanPhone.length >= 7 && (typeof navigator === "undefined" || navigator.onLine)) {
+      const { data } = await supabase
+        .from("customers")
+        .upsert({ phone: cleanPhone, name: customerName || null }, { onConflict: "phone" })
+        .select("id")
+        .single();
+      if (data?.id) cId = data.id;
+    }
+
+    const locationId = typeof window !== "undefined"
+      ? localStorage.getItem("aurafood-active-location") : null;
+
     // Build payloads once (reused for online insert and offline queue)
     const orderPayload = {
       customer_name: customerName || null,
+      customer_phone: cleanPhone || null,
+      customer_id: cId,
+      location_id: locationId,
       customer_table: customerTable || null,
       status: "pending",
       subtotal,
@@ -339,6 +383,9 @@ export default function POSPage() {
     function resetForm() {
       clearCart();
       setCustomerName("");
+      setCustomerPhone("");
+      setCustomerLookup(null);
+      setCustomerId(null);
       setCustomerTable("");
       setNotes("");
       setAmountPaid("");
@@ -780,6 +827,24 @@ export default function POSPage() {
                   onChange={(e) => setCustomerTable(e.target.value)}
                 />
               </div>
+              <Input
+                placeholder="Teléfono (opcional)"
+                value={customerPhone}
+                onChange={(e) => {
+                  setCustomerPhone(e.target.value);
+                  lookupCustomer(e.target.value);
+                }}
+              />
+              {customerLookup && (
+                <div className="flex items-center justify-between text-xs bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5">
+                  <span className="text-indigo-800 font-medium">
+                    🌟 {customerLookup.name || "Cliente frecuente"}
+                  </span>
+                  <span className="text-indigo-600 tabular-nums">
+                    {customerLookup.total_orders} órdenes · ${customerLookup.total_spent.toFixed(0)}
+                  </span>
+                </div>
+              )}
               <Textarea
                 placeholder="Notas..."
                 value={notes}

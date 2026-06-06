@@ -1,9 +1,14 @@
 "use client";
 
-import { Order } from "@/lib/types";
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import { Order, Settings } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Printer, X } from "lucide-react";
+import { Printer, X, ReceiptText } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { getSettings } from "@/lib/settings";
+import { buildReceiptEscPos, printEscPos } from "@/lib/escpos";
+import { toast } from "sonner";
 
 export type PaymentMethod = "cash" | "card" | "transfer";
 
@@ -13,13 +18,7 @@ const PM_LABELS: Record<PaymentMethod, string> = {
   transfer: "Transferencia",
 };
 
-const R_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "Mi Restaurante";
-const R_ADDRESS = process.env.NEXT_PUBLIC_RESTAURANT_ADDRESS ?? "";
-const R_PHONE = process.env.NEXT_PUBLIC_RESTAURANT_PHONE ?? "";
-const R_RFC = process.env.NEXT_PUBLIC_RESTAURANT_RFC ?? "";
 const R_WEBSITE = process.env.NEXT_PUBLIC_RESTAURANT_WEBSITE ?? "";
-const SHOW_TAX = process.env.NEXT_PUBLIC_SHOW_TAX === "true";
-const TAX_RATE = parseFloat(process.env.NEXT_PUBLIC_TAX_RATE ?? "16") / 100;
 
 function Line() {
   return <div className="border-t border-dashed border-gray-300 my-2" />;
@@ -59,6 +58,17 @@ export function Receipt({
   amountPaid?: number;
   onClose: () => void;
 }) {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => { getSettings().then(setSettings); }, []);
+
+  const R_NAME = settings?.restaurant_name ?? "Mi Restaurante";
+  const R_ADDRESS = settings?.address ?? "";
+  const R_PHONE = settings?.phone ?? "";
+  const R_RFC = settings?.rfc ?? "";
+  const R_LOGO = settings?.logo_url ?? null;
+  const SHOW_TAX = !!settings?.tax_enabled;
+  const TAX_RATE = (settings?.tax_rate ?? 16) / 100;
+
   const total = Number(order.total);
   const taxAmount = SHOW_TAX ? total - total / (1 + TAX_RATE) : 0;
   const subtotalEx = SHOW_TAX ? total - taxAmount : total;
@@ -99,6 +109,20 @@ export function Receipt({
             <Printer className="h-4 w-4 mr-1.5" />
             Imprimir
           </Button>
+          <Button
+            onClick={async () => {
+              if (!settings) { toast.error("Cargando ajustes..."); return; }
+              const payload = buildReceiptEscPos(order, settings, paymentMethod, amountPaid);
+              const mode = await printEscPos(payload, `ticket-${order.order_number}.bin`);
+              toast.success(mode === "web-usb" ? "Enviado a impresora térmica" : "Archivo .bin descargado");
+            }}
+            variant="outline"
+            className="h-9 px-2"
+            size="sm"
+            title="Imprimir en térmica ESC/POS (USB) o descargar .bin"
+          >
+            <ReceiptText className="h-4 w-4" />
+          </Button>
           <Button onClick={onClose} variant="outline" className="flex-1 h-9" size="sm">
             <X className="h-4 w-4 mr-1.5" />
             Cerrar
@@ -110,6 +134,11 @@ export function Receipt({
 
           {/* Header: restaurant info */}
           <div className="text-center space-y-0.5 mb-1">
+            {R_LOGO && (
+              <div className="flex justify-center mb-1">
+                <Image src={R_LOGO} alt={R_NAME} width={56} height={56} className="object-contain h-14 w-14" />
+              </div>
+            )}
             <p className="text-[15px] font-extrabold tracking-wide uppercase leading-tight">
               {R_NAME}
             </p>

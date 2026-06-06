@@ -47,6 +47,7 @@ export default function MenuPage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [customerTable, setCustomerTable] = useState(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("mesa") ?? "";
@@ -145,6 +146,7 @@ export default function MenuPage() {
         .from("orders")
         .insert({
           customer_name: customerName || null,
+          customer_phone: customerPhone.replace(/\D/g, "") || null,
           customer_table: customerTable || null,
           status: "pending",
           subtotal: cartSubtotal,
@@ -180,6 +182,7 @@ export default function MenuPage() {
       clearCart();
       setCartOpen(false);
       setCustomerName("");
+      setCustomerPhone("");
       setCustomerTable("");
       setNotes("");
       setTipPct(0);
@@ -534,6 +537,16 @@ export default function MenuPage() {
                   className="mt-1 h-9"
                 />
               </div>
+            </div>
+            <div>
+              <Label className="text-xs">Teléfono (opcional)</Label>
+              <Input
+                type="tel"
+                placeholder="Ej: 555 123 4567"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                className="mt-1 h-9"
+              />
             </div>
             <Input
               placeholder="Notas especiales..."
