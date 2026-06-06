@@ -150,12 +150,33 @@ export default function AdminMenuPage() {
 
   async function addRecipeItem() {
     if (!editingProd || !recipeIngId || !recipeQty) return;
-    const { error } = await supabase.from("product_recipes").upsert({
-      product_id: editingProd.id,
-      ingredient_id: recipeIngId,
-      quantity: parseFloat(recipeQty),
-    }, { onConflict: "product_id,ingredient_id" });
-    if (error) { toast.error("Error al guardar receta"); return; }
+    
+    const qty = parseFloat(recipeQty);
+    if (isNaN(qty) || qty <= 0) return;
+
+    const existing = prodRecipes.find(r => r.ingredient_id === recipeIngId);
+    let error;
+
+    if (existing) {
+      const res = await supabase.from("product_recipes")
+        .update({ quantity: qty })
+        .eq("id", existing.id);
+      error = res.error;
+    } else {
+      const res = await supabase.from("product_recipes").insert({
+        product_id: editingProd.id,
+        ingredient_id: recipeIngId,
+        quantity: qty,
+      });
+      error = res.error;
+    }
+
+    if (error) { 
+      console.error("Error saving recipe:", error);
+      toast.error("Error al guardar receta"); 
+      return; 
+    }
+    
     setRecipeIngId(""); setRecipeQty("");
     loadProductRecipes(editingProd.id);
     toast.success("Ingrediente agregado a la receta");
@@ -722,7 +743,7 @@ export default function AdminMenuPage() {
                         onChange={(e) => setRecipeQty(e.target.value)}
                         className="w-24"
                       />
-                      <Button size="sm" variant="outline" onClick={addRecipeItem}>
+                      <Button type="button" size="sm" variant="outline" onClick={addRecipeItem}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
