@@ -12,28 +12,27 @@ export async function POST(request: NextRequest) {
   const body: { order_id: string; items: ConsumeItem[] } = await request.json();
   const { order_id, items } = body;
 
-  if (!items?.length) return NextResponse.json({ ok: true });
+  if (!items?.length) return NextResponse.json({ ok: true, lowStock: [] });
 
-  // Load all recipes for the products in this order
+  // Load recipes for all products in the order
   const productIds = [...new Set(items.map((i) => i.product_id))];
   const { data: recipes } = await supabase
     .from("product_recipes")
     .select("product_id, ingredient_id, quantity")
     .in("product_id", productIds);
 
-  if (!recipes?.length) return NextResponse.json({ ok: true });
+  if (!recipes?.length) return NextResponse.json({ ok: true, lowStock: [] });
 
   // Calculate total consumption per ingredient
   const consumption: Record<string, number> = {};
   for (const item of items) {
-    const itemRecipes = recipes.filter((r) => r.product_id === item.product_id);
-    for (const r of itemRecipes) {
+    for (const r of recipes.filter((r) => r.product_id === item.product_id)) {
       consumption[r.ingredient_id] =
         (consumption[r.ingredient_id] ?? 0) + r.quantity * item.quantity;
     }
   }
 
-  // Deduct stock for each ingredient and record movement
+  // Record movements and deduct stock
   const movements = Object.entries(consumption).map(([ingredient_id, qty]) => ({
     ingredient_id,
     type: "sale" as const,
@@ -41,11 +40,8 @@ export async function POST(request: NextRequest) {
     reference_id: order_id,
     notes: null,
   }));
-
-  // Insert movements
   await supabase.from("stock_movements").insert(movements);
 
-  // Update ingredient stocks (rpc would be ideal, but we update individually)
   for (const [ingredient_id, qty] of Object.entries(consumption)) {
     const { data: ing } = await supabase
       .from("ingredients")
@@ -61,5 +57,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, consumed: consumption });
+  // Return any affected ingredients that are now at or below min_stock
+  const affectedIds = Object.keys(consumption);
+  const { data: affected } = await supabase
+    .from("ingredients")
+    .select("id, name, unit, stock, min_stock")
+    .in("id", affectedIds)
+    .gt("min_stock", 0);
+
+  const lowStock = (affected ?? []).filter(
+    (i) => Number(i.stock) <= Number(i.min_stock)
+  );
+
+  return NextResponse.json({ ok: true, consumed: consumption, lowStock });
 }

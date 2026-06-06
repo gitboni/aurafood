@@ -49,6 +49,46 @@ export default function InventoryPage() {
 
   const supabase = createClient();
 
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window
+      && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Realtime: listen for ingredient stock updates
+  useEffect(() => {
+    const channel = supabase
+      .channel("inventory-ingredients")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "ingredients" },
+        (payload) => {
+          const updated = payload.new as Ingredient;
+          setIngredients((prev) =>
+            prev.map((i) => (i.id === updated.id ? updated : i))
+          );
+          // Browser push notification when stock drops below minimum
+          if (
+            updated.min_stock > 0 &&
+            Number(updated.stock) <= Number(updated.min_stock) &&
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            new Notification("⚠️ Stock bajo — AuraFood", {
+              body: `${updated.name}: quedan ${Number(updated.stock).toFixed(0)} ${updated.unit} (mínimo ${Number(updated.min_stock).toFixed(0)})`,
+              icon: "/icon-192.svg",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   async function loadData() {
     try {
       const [ingRes, movRes] = await Promise.all([

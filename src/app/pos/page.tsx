@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Receipt, type PaymentMethod } from "@/components/receipt";
 import { BillingModal } from "@/components/billing-modal";
+import { LowStockAlert } from "@/components/low-stock-alert";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
 
@@ -197,7 +198,7 @@ export default function POSPage() {
       setReceiptOrder(fullOrder);
       toast.success(`Orden #${order.order_number} creada`);
 
-      // Deduct inventory stock based on product recipes
+      // Deduct inventory stock and check for low-stock alerts
       fetch("/api/inventory/consume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -205,7 +206,19 @@ export default function POSPage() {
           order_id: order.id,
           items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
         }),
-      }).catch(() => {}); // fire-and-forget, non-blocking
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.lowStock?.length > 0) {
+            const names = data.lowStock
+              .map((i: { name: string; stock: number; unit: string; min_stock: number }) =>
+                `${i.name} (${i.stock.toFixed(0)} ${i.unit})`
+              )
+              .join(", ");
+            toast.warning(`⚠️ Stock bajo: ${names}`, { duration: 8000 });
+          }
+        })
+        .catch(() => {});
       clearCart();
       setCustomerName("");
       setCustomerTable("");
@@ -378,6 +391,7 @@ export default function POSPage() {
             <h1 className="text-lg font-bold text-gray-800 hidden md:flex items-center gap-1.5">
               <ShoppingBag className="h-5 w-5 text-orange-500" /> POS — AuraFood
             </h1>
+            <LowStockAlert />
             <div className="flex-1" />
             <div className="relative w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

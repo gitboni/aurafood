@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { LowStockAlert } from "@/components/low-stock-alert";
 import { toast } from "sonner";
 
 function playNotificationSound() {
@@ -159,6 +160,7 @@ export default function KitchenPage() {
         <ChefHat className="h-6 w-6 text-green-400" />
         <h1 className="text-xl font-bold">Cocina — AuraFood</h1>
         <div className="flex-1" />
+        <LowStockAlert />
         <div className="flex gap-4 text-sm">
           <span className="text-yellow-400">● {pending.length} Pendientes</span>
           <span className="text-blue-400">● {preparing.length} Preparando</span>
