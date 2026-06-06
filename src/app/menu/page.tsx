@@ -52,6 +52,7 @@ export default function MenuPage() {
   });
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
+  const [tipPct, setTipPct] = useState(0);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -79,7 +80,9 @@ export default function MenuPage() {
   }, []);
 
   const cartCount = count();
-  const cartTotal = total();
+  const cartSubtotal = total();
+  const tipValue = +(cartSubtotal * (tipPct / 100)).toFixed(2);
+  const cartTotal = +(cartSubtotal + tipValue).toFixed(2);
   const featured = products.filter((p) => p.featured);
 
   // When searching: flat results. Otherwise: grouped by category.
@@ -112,6 +115,8 @@ export default function MenuPage() {
           customer_name: customerName || null,
           customer_table: customerTable || null,
           status: "pending",
+          subtotal: cartSubtotal,
+          tip: tipValue,
           total: cartTotal,
           notes: notes || null,
           source: "qr",
@@ -140,6 +145,7 @@ export default function MenuPage() {
       setCustomerName("");
       setCustomerTable("");
       setNotes("");
+      setTipPct(0);
 
       // Deduct inventory stock (fire-and-forget)
       fetch("/api/inventory/consume", {
@@ -481,10 +487,44 @@ export default function MenuPage() {
               onChange={(e) => setNotes(e.target.value)}
               className="h-9"
             />
+
+            {/* Suggested tip */}
+            <div>
+              <Label className="text-xs">¿Agregar propina?</Label>
+              <div className="grid grid-cols-4 gap-1.5 mt-1">
+                {[0, 10, 15, 20].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setTipPct(pct)}
+                    className={`py-2 rounded-lg border text-sm font-medium transition-all ${
+                      tipPct === pct
+                        ? "bg-orange-50 border-orange-400 text-orange-700"
+                        : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                    }`}
+                  >
+                    {pct === 0 ? "No" : `${pct}%`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Separator />
-            <div className="flex justify-between items-center font-bold text-lg">
-              <span>Total</span>
-              <span className="text-orange-600">${cartTotal.toFixed(2)}</span>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>${cartSubtotal.toFixed(2)}</span>
+              </div>
+              {tipValue > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Propina ({tipPct}%)</span>
+                  <span>+${tipValue.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center font-bold text-lg pt-1">
+                <span>Total</span>
+                <span className="text-orange-600">${cartTotal.toFixed(2)}</span>
+              </div>
             </div>
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"

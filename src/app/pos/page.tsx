@@ -128,6 +128,49 @@ export default function POSPage() {
     loadShift();
   }, []);
 
+  // ── Always-on alert for incoming QR orders (any tab) ───────
+  useEffect(() => {
+    const ch = supabase
+      .channel("pos-qr-incoming")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: "source=eq.qr" },
+        (payload) => {
+          const o = payload.new as Order;
+          try {
+            const ctx = new (window.AudioContext ||
+              (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            gain.gain.value = 0.25;
+            osc.start();
+            osc.stop(ctx.currentTime + 0.25);
+          } catch {}
+          toast.info(
+            `🔔 Nueva orden QR${o.customer_table ? ` — Mesa ${o.customer_table}` : ""}`,
+            { duration: 6000 }
+          );
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  // ── Warn before leaving with items in the cart ─────────────
+  useEffect(() => {
+    function beforeUnload(e: BeforeUnloadEvent) {
+      if (items.length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [items.length]);
+
   // ── Load QR orders when tab is active ──────────────────────
   async function loadQROrders() {
     const today = new Date();
