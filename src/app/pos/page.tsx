@@ -602,7 +602,7 @@ export default function POSPage() {
               <p className="font-medium">No hay órdenes QR{qrFilter !== "all" ? " con este estado" : " hoy"}</p>
             </div>
           ) : (
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-y-auto">
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredQR.map((order) => {
                   const st = QR_STATUS[order.status] ?? QR_STATUS.pending;
@@ -684,7 +684,7 @@ export default function POSPage() {
                   );
                 })}
               </div>
-            </ScrollArea>
+            </div>
           )}
         </div>
       )}
