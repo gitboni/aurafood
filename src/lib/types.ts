@@ -18,6 +18,8 @@ export type Product = {
   available: boolean;
   featured: boolean;
   sort_order: number;
+  stock: number | null;
+  track_stock: boolean;
   created_at: string;
 };
 
@@ -29,13 +31,24 @@ export type Order = {
   order_number: number;
   customer_name: string | null;
   customer_table: string | null;
+  customer_phone: string | null;
   status: OrderStatus;
   total: number;
   notes: string | null;
   source: OrderSource;
+  location_id: string | null;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];
+};
+
+export type Location = {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  active: boolean;
+  created_at: string;
 };
 
 export type OrderItem = {

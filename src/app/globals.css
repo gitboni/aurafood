@@ -128,3 +128,19 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  body > *:not(#receipt-content) {
+    visibility: hidden;
+  }
+  .print\\:hidden {
+    display: none !important;
+  }
+  #receipt-content {
+    visibility: visible;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+  }
+}

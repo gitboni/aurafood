@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Product, CartItem } from "@/lib/types";
+import { Category, Product, CartItem, Order } from "@/lib/types";
 import {
   ShoppingBag,
   Plus,
@@ -10,6 +10,7 @@ import {
   Trash2,
   Home,
   Search,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Receipt } from "@/components/receipt";
 import { toast } from "sonner";
 
 export default function POSPage() {
@@ -31,6 +33,7 @@ export default function POSPage() {
   const [customerTable, setCustomerTable] = useState("");
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
 
   const supabase = createClient();
 
@@ -94,7 +97,7 @@ export default function POSPage() {
           notes: notes || null,
           source: "pos",
         })
-        .select("id, order_number")
+        .select("*, order_items(*)")
         .single();
 
       if (orderError) throw orderError;
@@ -109,8 +112,14 @@ export default function POSPage() {
         notes: i.notes || null,
       }));
 
-      const { error: itemsError } = await supabase.from("order_items").insert(items);
+      const { data: insertedItems, error: itemsError } = await supabase
+        .from("order_items")
+        .insert(items)
+        .select("*");
       if (itemsError) throw itemsError;
+
+      const fullOrder: Order = { ...order, order_items: insertedItems };
+      setReceiptOrder(fullOrder);
 
       toast.success(`Orden #${order.order_number} creada`);
       setCart([]);
@@ -126,15 +135,25 @@ export default function POSPage() {
 
   return (
     <div className="flex h-screen bg-gray-100">
+      {/* Receipt overlay */}
+      {receiptOrder && (
+        <Receipt order={receiptOrder} onClose={() => setReceiptOrder(null)} />
+      )}
+
       {/* Left panel — Products */}
       <div className="flex-1 flex flex-col">
-        {/* Top bar */}
         <header className="bg-white border-b px-4 py-3 flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost" size="icon">
               <Home className="h-5 w-5" />
             </Button>
           </Link>
+          <Button variant="ghost" size="icon" onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = "/login";
+          }}>
+            <LogOut className="h-5 w-5" />
+          </Button>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-orange-500" />
             POS — AuraFood
@@ -142,25 +161,17 @@ export default function POSPage() {
           <div className="flex-1" />
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar producto..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <Input placeholder="Buscar producto..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </header>
 
-        {/* Categories */}
         <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto">
           {categories.map((cat) => (
             <Button
               key={cat.id}
               variant={activeCategory === cat.id ? "default" : "outline"}
               size="sm"
-              className={`shrink-0 ${
-                activeCategory === cat.id ? "bg-orange-500 hover:bg-orange-600" : ""
-              }`}
+              className={`shrink-0 ${activeCategory === cat.id ? "bg-orange-500 hover:bg-orange-600" : ""}`}
               onClick={() => setActiveCategory(cat.id)}
             >
               {cat.name}
@@ -168,7 +179,6 @@ export default function POSPage() {
           ))}
         </div>
 
-        {/* Product grid */}
         <ScrollArea className="flex-1 p-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {filtered.map((p) => {
@@ -176,9 +186,7 @@ export default function POSPage() {
               return (
                 <Card
                   key={p.id}
-                  className={`p-3 cursor-pointer hover:shadow-md transition-all ${
-                    inCart ? "ring-2 ring-orange-400" : ""
-                  }`}
+                  className={`p-3 cursor-pointer hover:shadow-md transition-all ${inCart ? "ring-2 ring-orange-400" : ""}`}
                   onClick={() => addToCart(p)}
                 >
                   {p.image_url && (
@@ -188,21 +196,15 @@ export default function POSPage() {
                   )}
                   <p className="font-medium text-sm truncate">{p.name}</p>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-orange-600 font-bold text-sm">
-                      ${p.price.toFixed(2)}
-                    </span>
-                    {inCart && (
-                      <Badge className="bg-orange-500">{inCart.quantity}</Badge>
-                    )}
+                    <span className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</span>
+                    {inCart && <Badge className="bg-orange-500">{inCart.quantity}</Badge>}
                   </div>
                 </Card>
               );
             })}
           </div>
           {filtered.length === 0 && (
-            <p className="text-center text-muted-foreground py-12">
-              No se encontraron productos
-            </p>
+            <p className="text-center text-muted-foreground py-12">No se encontraron productos</p>
           )}
         </ScrollArea>
       </div>
@@ -216,31 +218,24 @@ export default function POSPage() {
 
         <ScrollArea className="flex-1 p-4">
           {cart.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Agrega productos a la orden
-            </p>
+            <p className="text-center text-muted-foreground py-8">Agrega productos a la orden</p>
           ) : (
             <div className="space-y-3">
               {cart.map((item) => (
                 <div key={item.product.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{item.product.name}</p>
-                    <p className="text-sm text-orange-600 font-semibold">
-                      ${(item.product.price * item.quantity).toFixed(2)}
-                    </p>
+                    <p className="text-sm text-orange-600 font-semibold">${(item.product.price * item.quantity).toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button size="icon" variant="outline" className="h-7 w-7"
-                      onClick={() => updateQty(item.product.id, item.quantity - 1)}>
+                    <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.product.id, item.quantity - 1)}>
                       <Minus className="h-3 w-3" />
                     </Button>
                     <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                    <Button size="icon" variant="outline" className="h-7 w-7"
-                      onClick={() => updateQty(item.product.id, item.quantity + 1)}>
+                    <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.product.id, item.quantity + 1)}>
                       <Plus className="h-3 w-3" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                      onClick={() => updateQty(item.product.id, 0)}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => updateQty(item.product.id, 0)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -250,26 +245,12 @@ export default function POSPage() {
           )}
         </ScrollArea>
 
-        {/* Order details */}
         <div className="p-4 border-t space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Cliente"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-            />
-            <Input
-              placeholder="Mesa"
-              value={customerTable}
-              onChange={(e) => setCustomerTable(e.target.value)}
-            />
+            <Input placeholder="Cliente" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            <Input placeholder="Mesa" value={customerTable} onChange={(e) => setCustomerTable(e.target.value)} />
           </div>
-          <Textarea
-            placeholder="Notas..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-          />
+          <Textarea placeholder="Notas..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           <Separator />
           <div className="flex justify-between items-center text-xl font-bold">
             <span>Total</span>

@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   TrendingUp,
   Clock,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,13 @@ export default function ReportsPage() {
           onChange={(e) => setDate(e.target.value)}
           className="w-auto"
         />
+        <Button variant="ghost" size="icon" onClick={async () => {
+          const supabase = createClient();
+          await supabase.auth.signOut();
+          window.location.href = '/login';
+        }}>
+          <LogOut className="h-5 w-5" />
+        </Button>
       </header>
 
       <div className="max-w-6xl mx-auto p-6 space-y-6">

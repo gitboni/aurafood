@@ -11,7 +11,18 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: "AuraFood - Sistema POS",
   description: "Sistema de punto de venta y menú digital para AuraFood",
+  manifest: "/manifest.json",
 };
+
+function RegisterSW() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}`,
+      }}
+    />
+  );
+}
 
 export default function RootLayout({
   children,
@@ -23,6 +34,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <Toaster position="top-right" richColors />
+        <RegisterSW />
       </body>
     </html>
   );

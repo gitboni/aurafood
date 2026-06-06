@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   QrCode,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -58,8 +59,26 @@ export default function AdminMenuPage() {
   const [prodCategory, setProdCategory] = useState("");
   const [prodImage, setProdImage] = useState("");
   const [prodFeatured, setProdFeatured] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const supabase = createClient();
+
+  async function uploadImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const fileName = `${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("products").upload(fileName, file);
+    if (error) {
+      toast.error("Error al subir imagen");
+      setUploading(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from("products").getPublicUrl(fileName);
+    setProdImage(urlData.publicUrl);
+    setUploading(false);
+    toast.success("Imagen subida");
+  }
 
   async function loadData() {
     const [catRes, prodRes] = await Promise.all([
@@ -194,6 +213,13 @@ export default function AdminMenuPage() {
         <div className="flex-1" />
         <Button variant="outline" onClick={() => setShowQR(true)}>
           <QrCode className="h-4 w-4 mr-2" /> Código QR
+        </Button>
+        <Button variant="ghost" size="icon" onClick={async () => {
+          const supabase = createClient();
+          await supabase.auth.signOut();
+          window.location.href = '/login';
+        }}>
+          <LogOut className="h-5 w-5" />
         </Button>
       </header>
 
@@ -354,8 +380,19 @@ export default function AdminMenuPage() {
               </div>
             </div>
             <div>
-              <Label>URL de Imagen (opcional)</Label>
-              <Input value={prodImage} onChange={(e) => setProdImage(e.target.value)} placeholder="https://..." />
+              <Label>Imagen del producto</Label>
+              {prodImage && (
+                <div className="h-32 bg-muted rounded-lg overflow-hidden mb-2">
+                  <img src={prodImage} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={uploadImage}
+                disabled={uploading}
+              />
+              {uploading && <p className="text-xs text-muted-foreground mt-1">Subiendo imagen...</p>}
             </div>
             <div className="flex items-center gap-2">
               <input
