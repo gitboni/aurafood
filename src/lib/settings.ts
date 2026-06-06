@@ -12,7 +12,8 @@ const DEFAULT: Settings = {
   phone: process.env.NEXT_PUBLIC_RESTAURANT_PHONE ?? null,
   rfc: process.env.NEXT_PUBLIC_RESTAURANT_RFC ?? null,
   tax_enabled: process.env.NEXT_PUBLIC_SHOW_TAX === "true",
-  tax_rate: parseFloat(process.env.NEXT_PUBLIC_TAX_RATE ?? "16"),
+  tax_rate: parseFloat(process.env.NEXT_PUBLIC_TAX_RATE ?? "18"),
+  tax_label: process.env.NEXT_PUBLIC_TAX_LABEL ?? "ITBIS",
   updated_at: new Date(0).toISOString(),
 };
 

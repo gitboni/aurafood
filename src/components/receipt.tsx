@@ -67,7 +67,8 @@ export function Receipt({
   const R_RFC = settings?.rfc ?? "";
   const R_LOGO = settings?.logo_url ?? null;
   const SHOW_TAX = !!settings?.tax_enabled;
-  const TAX_RATE = (settings?.tax_rate ?? 16) / 100;
+  const TAX_RATE = (settings?.tax_rate ?? 18) / 100;
+  const TAX_LABEL = settings?.tax_label ?? "ITBIS";
 
   const total = Number(order.total);
   const taxAmount = SHOW_TAX ? total - total / (1 + TAX_RATE) : 0;
@@ -233,11 +234,11 @@ export function Receipt({
           {SHOW_TAX ? (
             <div className="space-y-0.5">
               <Row
-                label={`Subtotal (sin IVA ${Math.round(TAX_RATE * 100)}%):`}
+                label={`Subtotal (sin ${TAX_LABEL}):`}
                 value={`$${subtotalEx.toFixed(2)}`}
               />
               <Row
-                label={`IVA ${Math.round(TAX_RATE * 100)}%:`}
+                label={`${TAX_LABEL} ${Number((TAX_RATE * 100).toFixed(2))}%:`}
                 value={`$${taxAmount.toFixed(2)}`}
               />
               <Line />

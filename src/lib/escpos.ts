@@ -85,6 +85,17 @@ export function buildReceiptEscPos(order: Order, settings: Settings, paymentMeth
     if (discountAmt > 0) parts.push(row(`Desc. ${Number(order.discount_percent) || 0}%:`, `-$${discountAmt.toFixed(2)}`));
     if (tipAmt > 0) parts.push(row("Propina:", `$${tipAmt.toFixed(2)}`));
   }
+
+  // Tax breakdown (tax-inclusive)
+  if (settings.tax_enabled) {
+    const rate = (settings.tax_rate ?? 18) / 100;
+    const taxLabel = settings.tax_label ?? "ITBIS";
+    const taxAmount = total - total / (1 + rate);
+    const baseEx = total - taxAmount;
+    parts.push(row(`Subtotal (sin ${taxLabel}):`, `$${baseEx.toFixed(2)}`));
+    parts.push(row(`${taxLabel} ${Number((rate * 100).toFixed(2))}%:`, `$${taxAmount.toFixed(2)}`));
+  }
+
   parts.push(BOLD_ON, SIZE_DOUBLE);
   parts.push(row("TOTAL", `$${total.toFixed(2)}`));
   parts.push(SIZE_NORMAL, BOLD_OFF);

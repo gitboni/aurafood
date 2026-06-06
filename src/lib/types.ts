@@ -134,6 +134,7 @@ export type Settings = {
   rfc: string | null;
   tax_enabled: boolean;
   tax_rate: number;
+  tax_label: string;
   updated_at: string;
 };
 

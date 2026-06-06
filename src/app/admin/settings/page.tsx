@@ -29,7 +29,7 @@ export default function SettingsPage() {
     setSettings(
       data ?? {
         id: 1, restaurant_name: "Mi Restaurante", logo_url: null, favicon_url: null,
-        address: null, phone: null, rfc: null, tax_enabled: false, tax_rate: 16,
+        address: null, phone: null, rfc: null, tax_enabled: false, tax_rate: 18, tax_label: "ITBIS",
         updated_at: new Date().toISOString(),
       }
     );
@@ -81,6 +81,7 @@ export default function SettingsPage() {
       rfc: settings.rfc,
       tax_enabled: settings.tax_enabled,
       tax_rate: settings.tax_rate,
+      tax_label: settings.tax_label,
       updated_at: new Date().toISOString(),
     });
     setSaving(false);
@@ -192,15 +193,22 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               <input type="checkbox" id="tax" checked={settings.tax_enabled}
                 onChange={(e) => set("tax_enabled", e.target.checked)} className="rounded" />
-              <Label htmlFor="tax">Desglosar IVA en el ticket</Label>
-              {settings.tax_enabled && (
-                <div className="flex items-center gap-1 ml-auto">
-                  <Input type="number" min="0" max="100" value={settings.tax_rate}
-                    onChange={(e) => set("tax_rate", parseFloat(e.target.value) || 0)} className="w-20" />
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
-              )}
+              <Label htmlFor="tax">Desglosar impuesto en la factura</Label>
             </div>
+            {settings.tax_enabled && (
+              <div className="grid grid-cols-2 gap-4 pl-6">
+                <div>
+                  <Label>Nombre del impuesto</Label>
+                  <Input value={settings.tax_label}
+                    onChange={(e) => set("tax_label", e.target.value)} className="mt-1" placeholder="ITBIS" />
+                </div>
+                <div>
+                  <Label>Porcentaje (%)</Label>
+                  <Input type="number" min="0" max="100" step="0.01" value={settings.tax_rate}
+                    onChange={(e) => set("tax_rate", parseFloat(e.target.value) || 0)} className="mt-1" />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
