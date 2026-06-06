@@ -140,6 +140,29 @@ export default function POSPage() {
     else addItem(p);
   }
 
+  // Mark a product as out of stock (86) — hides it from POS + menu
+  async function markUnavailable(p: Product) {
+    setProducts((prev) => prev.filter((x) => x.id !== p.id));
+    const { error } = await supabase
+      .from("products")
+      .update({ available: false })
+      .eq("id", p.id);
+    if (error) {
+      toast.error("No se pudo agotar");
+      setProducts((prev) => [...prev, p].sort((a, b) => a.sort_order - b.sort_order));
+    } else {
+      toast.success(`${p.name} marcado como agotado`, {
+        action: {
+          label: "Deshacer",
+          onClick: async () => {
+            await supabase.from("products").update({ available: true }).eq("id", p.id);
+            setProducts((prev) => [...prev, p].sort((a, b) => a.sort_order - b.sort_order));
+          },
+        },
+      });
+    }
+  }
+
   // ── Load current open shift ─────────────────────────────────
   useEffect(() => {
     async function loadShift() {
@@ -578,6 +601,14 @@ export default function POSPage() {
                           opciones
                         </span>
                       )}
+                      <button
+                        type="button"
+                        title="Marcar agotado (86)"
+                        className="absolute top-1 left-1 z-10 h-5 w-5 rounded-full bg-gray-200/90 hover:bg-red-500 hover:text-white text-gray-500 text-[10px] font-bold flex items-center justify-center transition-colors"
+                        onClick={(e) => { e.stopPropagation(); markUnavailable(p); }}
+                      >
+                        86
+                      </button>
                       {p.image_url && (
                         <div className="relative h-20 bg-muted rounded-md mb-2 overflow-hidden">
                           <Image
