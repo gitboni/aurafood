@@ -73,7 +73,8 @@ export default function POSPage() {
   const [qrOrders, setQrOrders] = useState<Order[]>([]);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFilter, setQrFilter] = useState("all");
-  const [billingOrder, setBillingOrder] = useState<Order | null>(null);
+  // billingOrders: [] = no billing open, [order] = single, [o1,o2…] = mesa completa
+  const [billingOrders, setBillingOrders] = useState<Order[]>([]);
   const [billingReceipt, setBillingReceipt] = useState<{
     paymentMethod: PaymentMethod;
     amountPaid?: number;
@@ -215,6 +216,54 @@ export default function POSPage() {
     ["pending", "ready"].includes(o.status)
   ).length;
 
+  // Group filtered orders by table (null table → own bucket per order id)
+  const tableGroups: { key: string; label: string; orders: Order[] }[] = [];
+  const seen = new Set<string>();
+  for (const order of filteredQR) {
+    const key = order.customer_table ?? `__${order.id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      tableGroups.push({
+        key,
+        label: order.customer_table ? `Mesa ${order.customer_table}` : "Sin mesa",
+        orders: filteredQR.filter(
+          (o) => (o.customer_table ?? `__${o.id}`) === key
+        ),
+      });
+    }
+  }
+
+  // Merge multiple orders into one virtual receipt
+  function mergeOrders(orders: Order[]): Order {
+    if (orders.length === 1) return orders[0];
+    return {
+      ...orders[0],
+      customer_name: null,
+      total: orders.reduce((s, o) => s + Number(o.total), 0),
+      notes: null,
+      order_items: orders.flatMap((o) => o.order_items ?? []),
+    };
+  }
+
+  // Close billing receipt: mark as delivered + remove from list
+  async function closeBillingReceipt() {
+    if (billingOrders.length > 0) {
+      const ids = billingOrders.map((o) => o.id);
+      const activeIds = billingOrders
+        .filter((o) => !["delivered", "cancelled"].includes(o.status))
+        .map((o) => o.id);
+      if (activeIds.length > 0) {
+        await supabase
+          .from("orders")
+          .update({ status: "delivered" })
+          .in("id", activeIds);
+      }
+      setQrOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
+    }
+    setBillingOrders([]);
+    setBillingReceipt(null);
+  }
+
   // ── Loading / error ──────────────────────────────────────────
   if (loadingProducts) {
     return (
@@ -247,24 +296,23 @@ export default function POSPage() {
       )}
 
       {/* Billing modal for QR orders */}
-      {billingOrder && !billingReceipt && (
+      {billingOrders.length > 0 && !billingReceipt && (
         <BillingModal
-          order={billingOrder}
-          onClose={() => setBillingOrder(null)}
-          onPrint={(method, amount) => setBillingReceipt({ paymentMethod: method, amountPaid: amount })}
+          order={mergeOrders(billingOrders)}
+          onClose={() => setBillingOrders([])}
+          onPrint={(method, amount) =>
+            setBillingReceipt({ paymentMethod: method, amountPaid: amount })
+          }
         />
       )}
 
-      {/* Factura de orden QR — rendered by POS directly so it's always on top */}
-      {billingOrder && billingReceipt && (
+      {/* Factura — rendered at POS root so it's always on top */}
+      {billingOrders.length > 0 && billingReceipt && (
         <Receipt
-          order={billingOrder}
+          order={mergeOrders(billingOrders)}
           paymentMethod={billingReceipt.paymentMethod}
           amountPaid={billingReceipt.amountPaid}
-          onClose={() => {
-            setBillingOrder(null);
-            setBillingReceipt(null);
-          }}
+          onClose={closeBillingReceipt}
         />
       )}
 
@@ -603,84 +651,123 @@ export default function POSPage() {
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto">
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredQR.map((order) => {
-                  const st = QR_STATUS[order.status] ?? QR_STATUS.pending;
-                  const StatusIcon = st.icon;
+              <div className="p-4 space-y-6">
+                {tableGroups.map((group) => {
+                  const groupTotal = group.orders.reduce(
+                    (s, o) => s + Number(o.total),
+                    0
+                  );
+                  const isMulti = group.orders.length > 1;
                   return (
-                    <Card key={order.id} className="overflow-hidden">
-                      <CardContent className="p-0">
-                        {/* Card header */}
-                        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl font-extrabold">
-                              #{order.order_number}
-                            </span>
-                            {order.customer_table && (
-                              <span className="text-sm font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                                Mesa {order.customer_table}
-                              </span>
-                            )}
-                          </div>
-                          <Badge className={`${st.color} flex items-center gap-1 border-0`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {st.label}
-                          </Badge>
-                        </div>
-
-                        {/* Customer + time */}
-                        <div className="flex items-center gap-2 px-4 pb-2 text-xs text-muted-foreground">
-                          {order.customer_name && <span>{order.customer_name}</span>}
-                          <span>
-                            {new Date(order.created_at).toLocaleTimeString("es", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-
-                        <Separator />
-
-                        {/* Items */}
-                        <div className="px-4 py-3 space-y-1">
-                          {order.order_items?.map((item) => (
-                            <div key={item.id} className="flex justify-between text-sm">
-                              <span>
-                                <span className="font-semibold text-orange-600">
-                                  {item.quantity}x
-                                </span>{" "}
-                                {item.product_name}
-                              </span>
-                              <span className="tabular-nums">
-                                ${Number(item.subtotal).toFixed(2)}
-                              </span>
-                            </div>
-                          ))}
-                          {order.notes && (
-                            <p className="text-xs text-yellow-700 bg-yellow-50 p-1.5 rounded mt-1 italic">
-                              📝 {order.notes}
-                            </p>
+                    <div key={group.key}>
+                      {/* Table group header */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-base">{group.label}</h3>
+                          {isMulti && (
+                            <Badge variant="outline" className="text-xs">
+                              {group.orders.length} cuentas
+                            </Badge>
                           )}
                         </div>
-
-                        <Separator />
-
-                        {/* Footer */}
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <span className="font-bold text-lg text-orange-600">
-                            ${Number(order.total).toFixed(2)}
-                          </span>
-                          <Button
-                            size="sm"
-                            className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
-                            onClick={() => setBillingOrder(order)}
-                          >
-                            <ReceiptText className="h-4 w-4" />
-                            Factura
-                          </Button>
+                        <div className="flex items-center gap-2">
+                          {isMulti && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-orange-400 text-orange-600 hover:bg-orange-50 gap-1.5 text-xs"
+                              onClick={() => setBillingOrders(group.orders)}
+                            >
+                              <ReceiptText className="h-3.5 w-3.5" />
+                              Cobrar Mesa — ${groupTotal.toFixed(2)}
+                            </Button>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+
+                      {/* Order cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {group.orders.map((order) => {
+                          const st = QR_STATUS[order.status] ?? QR_STATUS.pending;
+                          const StatusIcon = st.icon;
+                          return (
+                            <Card key={order.id} className="overflow-hidden">
+                              <CardContent className="p-0">
+                                {/* Card header */}
+                                <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                                  <span className="text-xl font-extrabold">
+                                    #{order.order_number}
+                                  </span>
+                                  <Badge
+                                    className={`${st.color} flex items-center gap-1 border-0 text-xs`}
+                                  >
+                                    <StatusIcon className="h-3 w-3" />
+                                    {st.label}
+                                  </Badge>
+                                </div>
+
+                                {/* Customer + time */}
+                                <div className="flex items-center gap-2 px-4 pb-2 text-xs text-muted-foreground">
+                                  {order.customer_name && (
+                                    <span>{order.customer_name}</span>
+                                  )}
+                                  <span>
+                                    {new Date(order.created_at).toLocaleTimeString(
+                                      "es",
+                                      { hour: "2-digit", minute: "2-digit" }
+                                    )}
+                                  </span>
+                                </div>
+
+                                <Separator />
+
+                                {/* Items */}
+                                <div className="px-4 py-2 space-y-1">
+                                  {order.order_items?.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="flex justify-between text-sm"
+                                    >
+                                      <span>
+                                        <span className="font-semibold text-orange-600">
+                                          {item.quantity}x
+                                        </span>{" "}
+                                        {item.product_name}
+                                      </span>
+                                      <span className="tabular-nums">
+                                        ${Number(item.subtotal).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {order.notes && (
+                                    <p className="text-xs text-yellow-700 bg-yellow-50 p-1.5 rounded mt-1 italic">
+                                      📝 {order.notes}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <Separator />
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-between px-4 py-2">
+                                  <span className="font-bold text-orange-600">
+                                    ${Number(order.total).toFixed(2)}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                                    onClick={() => setBillingOrders([order])}
+                                  >
+                                    <ReceiptText className="h-4 w-4" />
+                                    Factura
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

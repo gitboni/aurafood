@@ -101,7 +101,7 @@ export function Receipt({
         </div>
 
         {/* ── Ticket ── */}
-        <div className="px-5 py-4 font-mono text-xs space-y-0 leading-relaxed">
+        <div id="receipt-content" className="px-5 py-4 font-mono text-xs space-y-0 leading-relaxed">
 
           {/* Header: restaurant info */}
           <div className="text-center space-y-0.5 mb-1">
