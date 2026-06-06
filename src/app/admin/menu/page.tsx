@@ -46,6 +46,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function AdminMenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -301,6 +302,7 @@ export default function AdminMenuPage() {
         </Link>
         <LayoutDashboard className="h-5 w-5 text-blue-500" />
         <h1 className="text-xl font-bold">Gestión de Menú</h1>
+        <ThemeToggle />
         <div className="flex-1" />
         <Button variant="outline" onClick={() => setShowQR(true)}>
           <QrCode className="h-4 w-4 mr-2" /> Código QR

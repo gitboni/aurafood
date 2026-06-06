@@ -47,5 +47,36 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // ── Role-Based Access Control ──────────────────────────────
+  if (user && isProtected) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const role = profile?.role;
+
+    if (role) {
+      const pathname = request.nextUrl.pathname;
+
+      const ROLE_ROUTES: Record<string, string[]> = {
+        admin: ["/pos", "/kitchen", "/admin"],
+        cashier: ["/pos", "/kitchen"],
+        kitchen: ["/kitchen"],
+      };
+
+      const allowed = ROLE_ROUTES[role] ?? [];
+      const hasAccess = allowed.some((prefix) => pathname.startsWith(prefix));
+
+      if (!hasAccess) {
+        const fallback = allowed[0] ?? "/";
+        const url = request.nextUrl.clone();
+        url.pathname = fallback;
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return supabaseResponse;
 }

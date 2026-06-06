@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { LogIn, Loader2 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -33,11 +34,30 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex-1 flex items-center justify-center min-h-screen p-6 bg-gradient-to-br from-orange-50 to-amber-50">
-      <Card className="w-full max-w-sm">
+    <main className="relative flex-1 flex items-center justify-center min-h-screen p-6 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 overflow-hidden">
+      {/* Glassmorphism background blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-orange-300/30 dark:bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-rose-300/30 dark:bg-rose-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-200/20 dark:bg-amber-500/5 rounded-full blur-3xl" />
+      </div>
+
+      {/* Theme toggle top-right */}
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
+
+      {/* Login card */}
+      <Card className="relative z-10 w-full max-w-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-white/20 dark:border-slate-700/50 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-700">
         <CardHeader className="text-center">
-          <div className="text-4xl mb-2">🍽️</div>
-          <CardTitle className="text-2xl">AuraFood</CardTitle>
+          <div className="mx-auto mb-3 w-14 h-14 flex items-center justify-center rounded-2xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-md border border-white/30 dark:border-slate-700/30 shadow-sm text-3xl">
+            🍽️
+          </div>
+          <CardTitle className="text-2xl">
+            <span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
+              AuraFood
+            </span>
+          </CardTitle>
           <p className="text-sm text-muted-foreground">Inicia sesión para acceder al sistema</p>
         </CardHeader>
         <CardContent>

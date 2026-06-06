@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const UNITS = ["g", "kg", "mL", "L", "pza", "porción", "caja", "lata", "bolsa"];
 
@@ -238,6 +239,7 @@ export default function InventoryPage() {
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <Package className="h-5 w-5 text-emerald-600" />
         <h1 className="text-xl font-bold">Inventario</h1>
+        <ThemeToggle />
         <div className="flex-1" />
         <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Agregar Ingrediente

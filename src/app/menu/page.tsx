@@ -275,7 +275,7 @@ export default function MenuPage() {
         {/* Hero */}
         {!search && (
           <div className="text-center space-y-1">
-            <h2 className="text-2xl font-extrabold">{RESTAURANT_NAME}</h2>
+            <h2 className="text-3xl font-extrabold"><span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">{RESTAURANT_NAME}</span></h2>
             <p className="text-sm text-muted-foreground">
               Explora nuestro menú y haz tu pedido
             </p>
@@ -323,7 +323,7 @@ export default function MenuPage() {
                   {featured.map((p) => (
                     <Card
                       key={p.id}
-                      className="min-w-[148px] max-w-[148px] overflow-hidden shrink-0 snap-start hover:shadow-lg transition-shadow"
+                      className="min-w-[148px] max-w-[148px] overflow-hidden shrink-0 snap-start hover:shadow-lg hover:scale-[1.03] transition-all duration-300"
                     >
                       {p.image_url && (
                         <div className="relative h-24 overflow-hidden bg-muted">
@@ -396,7 +396,7 @@ export default function MenuPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
           <Button
             size="lg"
-            className="bg-orange-500 hover:bg-orange-600 text-white shadow-2xl rounded-full px-8 gap-3 h-12"
+            className="bg-orange-500 hover:bg-orange-600 text-white shadow-2xl shadow-orange-500/25 rounded-full px-8 gap-3 h-12"
             onClick={() => setCartOpen(true)}
           >
             <ShoppingCart className="h-5 w-5" />
@@ -538,9 +538,9 @@ function ProductCard({
   onDec: () => void;
 }) {
   return (
-    <Card className="overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
       {p.image_url && (
-        <div className="relative h-28 bg-muted overflow-hidden shrink-0">
+        <div className="relative h-28 bg-muted overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-300">
           <Image src={p.image_url} alt={p.name} fill className="object-cover" />
           {p.featured && (
             <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0">

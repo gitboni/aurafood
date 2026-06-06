@@ -34,6 +34,7 @@ import { BillingModal } from "@/components/billing-modal";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
+import { ThemeToggle } from '@/components/theme-toggle';
 
 type Tab = "sell" | "orders";
 
@@ -356,6 +357,7 @@ export default function POSPage() {
         >
           <LogOut className="h-5 w-5" />
         </Button>
+        <ThemeToggle />
 
         {/* Tab switcher */}
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">

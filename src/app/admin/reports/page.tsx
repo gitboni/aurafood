@@ -16,6 +16,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area,
+} from "recharts";
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const PAGE_SIZE = 50;
 
@@ -116,6 +127,26 @@ export default function ReportsPage() {
   });
   const consumption = Object.values(consumptionMap).sort((a, b) => b.total - a.total);
 
+  // Aggregate sales by hour for the trend chart
+  const hourlyMap: Record<number, { hour: number; revenue: number; orders: number }> = {};
+  for (let h = 0; h < 24; h++) hourlyMap[h] = { hour: h, revenue: 0, orders: 0 };
+  delivered.forEach((o) => {
+    const h = new Date(o.created_at).getHours();
+    hourlyMap[h].revenue += Number(o.total);
+    hourlyMap[h].orders += 1;
+  });
+  const hourlyData = Object.values(hourlyMap)
+    .filter((h) => h.revenue > 0 || h.orders > 0)
+    .map((h) => ({ ...h, label: `${String(h.hour).padStart(2, "0")}:00` }));
+
+  // Chart configs
+  const productChartConfig: ChartConfig = {
+    qty: { label: "Vendidos", color: "oklch(0.62 0.19 35.0)" },
+  };
+  const hourlyChartConfig: ChartConfig = {
+    revenue: { label: "Ingresos", color: "oklch(0.62 0.19 35.0)" },
+  };
+
   const STATUS_COLORS: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800", preparing: "bg-blue-100 text-blue-800",
     ready: "bg-green-100 text-green-800", delivered: "bg-gray-100 text-gray-800",
@@ -135,7 +166,13 @@ export default function ReportsPage() {
         <BarChart3 className="h-5 w-5 text-rose-500" />
         <h1 className="text-xl font-bold">Reportes</h1>
         <div className="flex-1" />
+        <ThemeToggle />
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
+        <Button variant="outline" size="sm" onClick={() => {
+          window.open(`/api/reports/export?date=${date}&format=csv`, "_blank");
+        }}>
+          📥 Exportar CSV
+        </Button>
         <Button variant="ghost" size="icon" onClick={async () => {
           await supabase.auth.signOut(); window.location.href = "/login";
         }}><LogOut className="h-5 w-5" /></Button>
@@ -186,12 +223,58 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          <Tabs defaultValue="orders">
+          <Tabs defaultValue="overview">
             <TabsList>
+              <TabsTrigger value="overview">Tendencias</TabsTrigger>
               <TabsTrigger value="orders">Ventas</TabsTrigger>
               <TabsTrigger value="products">Productos</TabsTrigger>
               <TabsTrigger value="inventory">Consumo de Inventario</TabsTrigger>
             </TabsList>
+
+            {/* ── Trends / Overview tab ── */}
+            <TabsContent value="overview" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-orange-500" />
+                    Ventas por Hora
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {hourlyData.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sin datos de ventas para esta fecha</p>
+                  ) : (
+                    <ChartContainer config={hourlyChartConfig} className="h-[300px] w-full">
+                      <AreaChart data={hourlyData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
+                        <defs>
+                          <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              formatter={(value) => `$${Number(value).toFixed(2)}`}
+                            />
+                          }
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke="var(--color-revenue)"
+                          strokeWidth={2}
+                          fill="url(#fillRevenue)"
+                        />
+                      </AreaChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             {/* ── Sales tab ── */}
             <TabsContent value="orders" className="mt-4">
@@ -268,20 +351,34 @@ export default function ReportsPage() {
                   {topProducts.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Sin ventas entregadas hoy</p>
                   ) : (
-                    <div className="space-y-3">
-                      {topProducts.map((p, i) => (
-                        <div key={p.name} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-muted-foreground w-6">{i + 1}.</span>
-                            <span className="text-sm">{p.name}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-bold">{p.qty}x</span>
-                            <span className="text-xs text-muted-foreground ml-2">${p.revenue.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <ChartContainer config={productChartConfig} className="h-[300px] w-full">
+                      <BarChart
+                        data={topProducts.slice(0, 10)}
+                        layout="vertical"
+                        margin={{ left: 10, right: 30, top: 5, bottom: 5 }}
+                      >
+                        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                        <YAxis
+                          dataKey="name"
+                          type="category"
+                          width={120}
+                          tick={{ fontSize: 12 }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <XAxis type="number" hide />
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              formatter={(value, name) =>
+                                name === "qty" ? `${value} unidades` : `$${Number(value).toFixed(2)}`
+                              }
+                            />
+                          }
+                        />
+                        <Bar dataKey="qty" fill="var(--color-qty)" radius={[0, 6, 6, 0]} />
+                      </BarChart>
+                    </ChartContainer>
                   )}
                 </CardContent>
               </Card>

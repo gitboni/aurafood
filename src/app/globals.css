@@ -133,7 +133,7 @@
   body > *:not(#receipt-content) {
     visibility: hidden;
   }
-  .print\\:hidden {
+  [class*="print:hidden"] {
     display: none !important;
   }
   #receipt-content {

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { toast } from "sonner";
+import { ThemeToggle } from '@/components/theme-toggle';
 
 function playNotificationSound() {
   try {
@@ -139,8 +140,8 @@ export default function KitchenPage() {
   const ready = orders.filter((o) => o.status === "ready");
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-gray-900 dark:bg-slate-950 text-white">
+      <header className="bg-gray-800 dark:bg-slate-900 border-b border-gray-700 px-6 py-4 flex items-center gap-4">
         <Link href="/">
           <Button variant="ghost" size="icon" className="text-white hover:bg-gray-700">
             <Home className="h-5 w-5" />
@@ -161,6 +162,7 @@ export default function KitchenPage() {
         <h1 className="text-xl font-bold">Cocina — AuraFood</h1>
         <div className="flex-1" />
         <LowStockAlert />
+        <ThemeToggle />
         <div className="flex gap-4 text-sm">
           <span className="text-yellow-400">● {pending.length} Pendientes</span>
           <span className="text-blue-400">● {preparing.length} Preparando</span>
@@ -203,7 +205,7 @@ export default function KitchenPage() {
                 onCancel={() => setCancelTarget(order.id)}
                 actions={
                   <Button
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-blue-600 hover:bg-blue-700 transition-transform hover:scale-105"
                     onClick={() => updateStatus(order.id, "preparing")}
                   >
                     Empezar a Preparar
@@ -226,7 +228,7 @@ export default function KitchenPage() {
                 onCancel={() => setCancelTarget(order.id)}
                 actions={
                   <Button
-                    className="w-full bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700 transition-transform hover:scale-105"
                     onClick={() => updateStatus(order.id, "ready")}
                   >
                     ¡Listo!
@@ -249,7 +251,7 @@ export default function KitchenPage() {
                 onCancel={() => setCancelTarget(order.id)}
                 actions={
                   <Button
-                    className="w-full bg-gray-600 hover:bg-gray-700"
+                    className="w-full bg-gray-600 hover:bg-gray-700 transition-transform hover:scale-105"
                     onClick={() => updateStatus(order.id, "delivered")}
                   >
                     Entregado
@@ -288,7 +290,7 @@ function OrderCard({
   actions: React.ReactNode;
 }) {
   return (
-    <Card className={`bg-gray-800 border-l-4 ${color} text-white`}>
+    <Card className={`bg-gray-800 border-l-4 ${color} text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20 animate-in fade-in slide-in-from-bottom-2`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-bold">#{order.order_number}</CardTitle>

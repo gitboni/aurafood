@@ -3,6 +3,7 @@
 import { Order } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 export type PaymentMethod = "cash" | "card" | "transfer";
 
@@ -81,7 +82,7 @@ export function Receipt({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl w-full max-w-[320px] max-h-[92vh] overflow-auto shadow-2xl print:shadow-none print:rounded-none print:max-h-none print:overflow-visible"
+        className="bg-white rounded-xl w-full max-w-[320px] max-h-[92vh] overflow-auto shadow-2xl print:shadow-none print:rounded-none print:max-h-none print:overflow-visible print:w-[80mm]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Controls — hidden on print */}
@@ -228,6 +229,18 @@ export function Receipt({
           )}
 
           <DoubleLine />
+
+          {/* QR Code */}
+          <div className="flex flex-col items-center gap-1 my-2">
+            <QRCodeSVG
+              value={`AURAFOOD-${String(order.order_number).padStart(4, "0")}`}
+              size={80}
+              level="M"
+            />
+            <p className="text-[9px] text-gray-400">Escanea para más info</p>
+          </div>
+
+          <Line />
 
           {/* Footer */}
           <div className="text-center space-y-0.5">

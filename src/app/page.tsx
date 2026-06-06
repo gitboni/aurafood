@@ -6,6 +6,9 @@ import {
   QrCode,
   BarChart3,
   Package,
+  Clock,
+  Users,
+  Sliders,
 } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -49,9 +52,30 @@ export default function Home() {
     {
       href: "/admin/inventory",
       title: "Inventario",
-      description: "Ingredientes, recetas y stock",
+      description: "Compras, stock y costos",
       icon: Package,
       color: "bg-emerald-500",
+    },
+    {
+      href: "/admin/shifts",
+      title: "Corte de Caja",
+      description: "Turnos y cierres",
+      icon: Clock,
+      color: "bg-amber-500",
+    },
+    {
+      href: "/admin/users",
+      title: "Usuarios",
+      description: "Roles y permisos",
+      icon: Users,
+      color: "bg-indigo-500",
+    },
+    {
+      href: "/admin/modifiers",
+      title: "Modificadores",
+      description: "Extras y tamaños",
+      icon: Sliders,
+      color: "bg-teal-500",
     },
   ];
 
