@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { createClient } from "@supabase/supabase-js";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -8,19 +9,41 @@ const geist = Geist({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "AuraFood | Premium POS & Digital Menu",
-  description: "Sistema avanzado de punto de venta y menú digital interactivo para gestión de restaurantes. AuraFood.",
-  keywords: ["POS", "restaurante", "menú digital", "AuraFood", "punto de venta"],
-  openGraph: {
-    title: "AuraFood | Premium POS",
-    description: "Sistema avanzado de punto de venta y menú digital interactivo.",
-    type: "website",
-    locale: "es_ES",
-    siteName: "AuraFood",
-  },
-  manifest: "/manifest.json",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let name = "El Buen Comer";
+  let favicon: string | null = null;
+
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data } = await supabase
+      .from("settings")
+      .select("restaurant_name, favicon_url")
+      .eq("id", 1)
+      .maybeSingle();
+    if (data?.restaurant_name) name = data.restaurant_name;
+    if (data?.favicon_url) favicon = data.favicon_url;
+  } catch {
+    // fall back to defaults
+  }
+
+  return {
+    title: `${name} | Sistema POS`,
+    description: `${name} — Sistema de punto de venta y menú digital.`,
+    keywords: ["POS", "restaurante", "menú digital", name, "punto de venta"],
+    openGraph: {
+      title: name,
+      description: `${name} — Menú digital`,
+      type: "website",
+      locale: "es_ES",
+      siteName: name,
+    },
+    manifest: "/manifest.json",
+    icons: favicon ? { icon: favicon, shortcut: favicon, apple: favicon } : undefined,
+  };
+}
 
 function RegisterSW() {
   return (

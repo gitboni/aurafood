@@ -128,15 +128,16 @@ export default function Home() {
       <div className="max-w-3xl w-full space-y-12 relative z-10">
         <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="inline-flex items-center justify-center p-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md rounded-2xl shadow-sm mb-2">
-            <span className="text-5xl">🍽️</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="El Buen Comer Logo" className="h-24 w-auto object-contain" />
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight">
             <span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
-              AuraFood
+              El Buen Comer
             </span>
           </h1>
           <p className="text-muted-foreground text-xl max-w-xl mx-auto font-medium">
-            Sistema avanzado de Punto de Venta y Menú Digital
+            ¡Sabor casero que conquista tu paladar!
           </p>
         </div>
 

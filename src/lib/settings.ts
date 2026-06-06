@@ -7,6 +7,7 @@ const DEFAULT: Settings = {
   id: 1,
   restaurant_name: process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "Mi Restaurante",
   logo_url: null,
+  favicon_url: null,
   address: process.env.NEXT_PUBLIC_RESTAURANT_ADDRESS ?? null,
   phone: process.env.NEXT_PUBLIC_RESTAURANT_PHONE ?? null,
   rfc: process.env.NEXT_PUBLIC_RESTAURANT_RFC ?? null,

@@ -35,7 +35,7 @@ import { ModifierPicker } from "@/components/modifier-picker";
 import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
 import { toast } from "sonner";
 
-const DEFAULT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "El Buen Comer";
+const RESTAURANT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "El Buen Comer";
 const ENABLE_PAYMENTS = process.env.NEXT_PUBLIC_ENABLE_PAYMENTS === "true";
 
 export default function MenuPage() {
@@ -57,7 +57,7 @@ export default function MenuPage() {
   const [tipPct, setTipPct] = useState(0);
   const [modGroups, setModGroups] = useState<Record<string, ModifierGroup[]>>({});
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
-  const [restaurantName, setRestaurantName] = useState(DEFAULT_NAME);
+  const [restaurantName, setRestaurantName] = useState(RESTAURANT_NAME);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =

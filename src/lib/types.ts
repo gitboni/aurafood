@@ -128,6 +128,7 @@ export type Settings = {
   id: number;
   restaurant_name: string;
   logo_url: string | null;
+  favicon_url: string | null;
   address: string | null;
   phone: string | null;
   rfc: string | null;

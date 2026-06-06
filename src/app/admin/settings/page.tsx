@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingFav, setUploadingFav] = useState(false);
 
   const supabase = createClient();
 
@@ -27,7 +28,7 @@ export default function SettingsPage() {
     if (error?.code === "42P01") { setNeedsSetup(true); setLoading(false); return; }
     setSettings(
       data ?? {
-        id: 1, restaurant_name: "Mi Restaurante", logo_url: null,
+        id: 1, restaurant_name: "Mi Restaurante", logo_url: null, favicon_url: null,
         address: null, phone: null, rfc: null, tax_enabled: false, tax_rate: 16,
         updated_at: new Date().toISOString(),
       }
@@ -54,6 +55,19 @@ export default function SettingsPage() {
     toast.success("Logo subido — recuerda guardar");
   }
 
+  async function uploadFavicon(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFav(true);
+    const fileName = `favicon-${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("branding").upload(fileName, file, { upsert: true });
+    if (error) { toast.error("Error al subir el favicon"); setUploadingFav(false); return; }
+    const { data } = supabase.storage.from("branding").getPublicUrl(fileName);
+    set("favicon_url", data.publicUrl);
+    setUploadingFav(false);
+    toast.success("Favicon subido — recuerda guardar");
+  }
+
   async function save() {
     if (!settings) return;
     setSaving(true);
@@ -61,6 +75,7 @@ export default function SettingsPage() {
       id: 1,
       restaurant_name: settings.restaurant_name,
       logo_url: settings.logo_url,
+      favicon_url: settings.favicon_url,
       address: settings.address,
       phone: settings.phone,
       rfc: settings.rfc,
@@ -128,6 +143,23 @@ export default function SettingsPage() {
                   <Input type="file" accept="image/*" onChange={uploadLogo} disabled={uploading} />
                   {uploading && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Subiendo...</p>}
                   <p className="text-xs text-muted-foreground mt-1">PNG o JPG, cuadrado de preferencia</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <Label>Favicon (ícono de la pestaña)</Label>
+              <div className="flex items-center gap-4 mt-1">
+                <div className="relative h-12 w-12 rounded-lg bg-muted overflow-hidden border shrink-0">
+                  {settings.favicon_url ? (
+                    <Image src={settings.favicon_url} alt="Favicon" fill className="object-contain p-1" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-xl">🍽️</div>
+                  )}
+                </div>
+                <div>
+                  <Input type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg" onChange={uploadFavicon} disabled={uploadingFav} />
+                  {uploadingFav && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Subiendo...</p>}
+                  <p className="text-xs text-muted-foreground mt-1">PNG o ICO, 32×32 o 64×64 px</p>
                 </div>
               </div>
             </div>

@@ -626,7 +626,7 @@ export default function POSPage() {
         {activeTab === "sell" && (
           <>
             <h1 className="text-lg font-bold text-gray-800 hidden md:flex items-center gap-1.5">
-              <ShoppingBag className="h-5 w-5 text-orange-500" /> POS — AuraFood
+              <ShoppingBag className="h-5 w-5 text-orange-500" /> POS — El Buen Comer
             </h1>
             {!isOnline && (
               <span className="flex items-center gap-1.5 bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-lg text-xs font-medium">

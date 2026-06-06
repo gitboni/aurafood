@@ -50,15 +50,21 @@ export default function LoginPage() {
       {/* Login card */}
       <Card className="relative z-10 w-full max-w-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-white/20 dark:border-slate-700/50 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-700">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-3 w-14 h-14 flex items-center justify-center rounded-2xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-md border border-white/30 dark:border-slate-700/30 shadow-sm text-3xl">
-            🍽️
+          {/* Branding */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md p-3 rounded-2xl shadow-sm">
+              <img src="/logo.png" alt="Logo" className="h-12 w-auto object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.classList.remove('hidden'); }} />
+              <span className="text-3xl hidden">🍽️</span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight">
+              <span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
+                El Buen Comer
+              </span>
+            </h1>
+            <p className="text-sm text-muted-foreground font-medium">
+              Ingresa a tu cuenta para continuar
+            </p>
           </div>
-          <CardTitle className="text-2xl">
-            <span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
-              AuraFood
-            </span>
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">Inicia sesión para acceder al sistema</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
