@@ -48,26 +48,24 @@ export default function ReportsPage() {
     if (reset) { setLoading(true); setError(false); setPage(0); }
     else setLoadingMore(true);
 
-    const start = new Date(d); start.setHours(0, 0, 0, 0);
-    const end   = new Date(d); end.setHours(23, 59, 59, 999);
+    const startISO = `${d}T00:00:00`;
+    const endISO = `${d}T23:59:59`;
     const currentPage = reset ? 0 : page + 1;
     const from = currentPage * PAGE_SIZE;
     const to   = from + PAGE_SIZE - 1;
 
     try {
-      // Count query (no join — avoids issues with embedded relations + count)
       const { count } = await supabase
         .from("orders")
         .select("*", { count: "exact", head: true })
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString());
+        .gte("created_at", startISO)
+        .lte("created_at", endISO);
 
-      // Data query with join + pagination
       const { data, error: dataError } = await supabase
         .from("orders")
         .select("*, order_items(*)")
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString())
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
         .order("created_at", { ascending: false })
         .range(from, to);
 
@@ -84,15 +82,12 @@ export default function ReportsPage() {
   }
 
   async function loadMovements(d: string) {
-    const start = new Date(d); start.setHours(0, 0, 0, 0);
-    const end   = new Date(d); end.setHours(23, 59, 59, 999);
-
     const { data, error } = await supabase
       .from("stock_movements")
       .select("*, ingredient:ingredients(name, unit)")
       .eq("type", "sale")
-      .gte("created_at", start.toISOString())
-      .lte("created_at", end.toISOString())
+      .gte("created_at", `${d}T00:00:00`)
+      .lte("created_at", `${d}T23:59:59`)
       .order("created_at", { ascending: false });
 
     if (!error && data) setMovements(data);

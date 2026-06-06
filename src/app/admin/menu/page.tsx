@@ -541,21 +541,16 @@ export default function AdminMenuPage() {
               </div>
               <div>
                 <Label>Categoría</Label>
-                <Select
+                <select
                   value={prodCategory}
-                  onValueChange={(v) => v && setProdCategory(v)}
+                  onChange={(e) => setProdCategory(e.target.value)}
+                  className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">Seleccionar</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div>
@@ -648,18 +643,16 @@ export default function AdminMenuPage() {
                   {/* Add ingredient to recipe */}
                   {ingredients.length > 0 ? (
                     <div className="flex gap-2">
-                      <Select value={recipeIngId} onValueChange={(v) => v && setRecipeIngId(v)}>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Ingrediente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ingredients.map((i) => (
-                            <SelectItem key={i.id} value={i.id}>
-                              {i.name} ({i.unit})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        value={recipeIngId}
+                        onChange={(e) => setRecipeIngId(e.target.value)}
+                        className="flex-1 h-9 rounded-lg border border-input bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <option value="">Ingrediente</option>
+                        {ingredients.map((i) => (
+                          <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
+                        ))}
+                      </select>
                       <Input
                         type="number"
                         step="0.001"
