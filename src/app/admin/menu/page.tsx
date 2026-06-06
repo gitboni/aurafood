@@ -71,6 +71,7 @@ export default function AdminMenuPage() {
   const [prodName, setProdName] = useState("");
   const [prodDesc, setProdDesc] = useState("");
   const [prodPrice, setProdPrice] = useState("");
+  const [prodCost, setProdCost] = useState("");
   const [prodCategory, setProdCategory] = useState("");
   const [prodImage, setProdImage] = useState("");
   const [prodFeatured, setProdFeatured] = useState(false);
@@ -126,9 +127,25 @@ export default function AdminMenuPage() {
   async function loadProductRecipes(productId: string) {
     const { data } = await supabase
       .from("product_recipes")
-      .select("*, ingredient:ingredients(name, unit)")
+      .select("*, ingredient:ingredients(name, unit, cost_per_unit)")
       .eq("product_id", productId);
     setProdRecipes((data ?? []) as ProductRecipe[]);
+  }
+
+  // Auto-fill product cost from the recipe (sum of ingredient costs)
+  async function applyRecipeCost() {
+    if (!editingProd) return;
+    const cost = prodRecipes.reduce((s, r) => {
+      const ing = r.ingredient as unknown as { cost_per_unit?: number } | undefined;
+      return s + r.quantity * (Number(ing?.cost_per_unit) || 0);
+    }, 0);
+    const { error } = await supabase
+      .from("products")
+      .update({ cost: +cost.toFixed(2) })
+      .eq("id", editingProd.id);
+    if (error) { toast.error("Error al guardar costo"); return; }
+    toast.success(`Costo actualizado: $${cost.toFixed(2)}`);
+    loadData();
   }
 
   async function addRecipeItem() {
@@ -212,6 +229,7 @@ export default function AdminMenuPage() {
       setProdName(prod.name);
       setProdDesc(prod.description || "");
       setProdPrice(prod.price.toString());
+      setProdCost(prod.cost ? prod.cost.toString() : "");
       setProdCategory(prod.category_id);
       setProdImage(prod.image_url || "");
       setProdFeatured(prod.featured);
@@ -222,6 +240,7 @@ export default function AdminMenuPage() {
       setProdName("");
       setProdDesc("");
       setProdPrice("");
+      setProdCost("");
       setProdCategory(categories[0]?.id || "");
       setProdImage("");
       setProdFeatured(false);
@@ -237,6 +256,7 @@ export default function AdminMenuPage() {
       name: prodName,
       description: prodDesc || null,
       price: parseFloat(prodPrice),
+      cost: prodCost ? parseFloat(prodCost) : 0,
       category_id: prodCategory,
       image_url: prodImage || null,
       featured: prodFeatured,
@@ -528,7 +548,7 @@ export default function AdminMenuPage() {
                 placeholder="Ingredientes o descripción"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label>Precio</Label>
                 <Input
@@ -536,6 +556,16 @@ export default function AdminMenuPage() {
                   step="0.01"
                   value={prodPrice}
                   onChange={(e) => setProdPrice(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label>Costo</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={prodCost}
+                  onChange={(e) => setProdCost(e.target.value)}
                   placeholder="0.00"
                 />
               </div>
@@ -639,6 +669,36 @@ export default function AdminMenuPage() {
                       })}
                     </div>
                   )}
+
+                  {/* Recipe cost summary */}
+                  {prodRecipes.length > 0 && (() => {
+                    const recipeCost = prodRecipes.reduce((s, r) => {
+                      const ing = r.ingredient as unknown as { cost_per_unit?: number } | undefined;
+                      return s + r.quantity * (Number(ing?.cost_per_unit) || 0);
+                    }, 0);
+                    const price = parseFloat(prodPrice) || 0;
+                    const margin = price > 0 ? ((price - recipeCost) / price) * 100 : 0;
+                    return (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Costo de receta</span>
+                          <span className="font-semibold">${recipeCost.toFixed(2)}</span>
+                        </div>
+                        {price > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Margen estimado</span>
+                            <span className={`font-semibold ${margin >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                              {margin.toFixed(0)}% (${(price - recipeCost).toFixed(2)})
+                            </span>
+                          </div>
+                        )}
+                        <Button size="sm" variant="outline" className="w-full mt-1 border-emerald-300"
+                          onClick={applyRecipeCost}>
+                          Usar como costo del producto
+                        </Button>
+                      </div>
+                    );
+                  })()}
 
                   {/* Add ingredient to recipe */}
                   {ingredients.length > 0 ? (
