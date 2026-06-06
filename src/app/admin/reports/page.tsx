@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { Order } from "@/lib/types";
 import {
   BarChart3, Home, DollarSign, ShoppingBag, TrendingUp, Clock,
-  LogOut, Loader2, AlertCircle, ChevronDown, Package,
+  LogOut, Loader2, AlertCircle, ChevronDown, Package, Search, Printer, Percent,
 } from "lucide-react";
+import { Receipt } from "@/components/receipt";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,11 @@ export default function ReportsPage() {
 
   // Inventory consumption for the date
   const [movements, setMovements] = useState<{ ingredient_id: string; quantity: number; ingredient?: { name: string; unit: string } }[]>([]);
+  // Product cost map for margin calc
+  const [productCosts, setProductCosts] = useState<Record<string, number>>({});
+  // Order search + reprint
+  const [search, setSearch] = useState("");
+  const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
 
   const supabase = createClient();
 
@@ -97,11 +103,39 @@ export default function ReportsPage() {
     if (!error && data) setMovements(data);
   }
 
-  useEffect(() => { loadOrders(date); loadMovements(date); }, [date]);
+  async function loadCosts() {
+    const { data } = await supabase.from("products").select("id, cost");
+    if (data) {
+      const map: Record<string, number> = {};
+      data.forEach((p: { id: string; cost: number | null }) => { map[p.id] = Number(p.cost) || 0; });
+      setProductCosts(map);
+    }
+  }
+
+  useEffect(() => { loadOrders(date); loadMovements(date); loadCosts(); }, [date]);
 
   const delivered   = orders.filter((o) => o.status === "delivered");
   const totalRevenue = delivered.reduce((s, o) => s + Number(o.total), 0);
   const avgTicket   = delivered.length > 0 ? totalRevenue / delivered.length : 0;
+
+  // Cost of goods sold + profit margin (uses product cost × qty)
+  const totalCost = delivered.reduce((s, o) =>
+    s + (o.order_items ?? []).reduce((cs, it) =>
+      cs + (productCosts[it.product_id] ?? 0) * it.quantity, 0), 0);
+  const grossProfit = totalRevenue - totalCost;
+  const marginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+
+  // Filter orders by search (folio / customer / table)
+  const visibleOrders = search.trim()
+    ? orders.filter((o) => {
+        const q = search.toLowerCase();
+        return (
+          String(o.order_number).includes(q) ||
+          (o.customer_name ?? "").toLowerCase().includes(q) ||
+          (o.customer_table ?? "").toLowerCase().includes(q)
+        );
+      })
+    : orders;
 
   const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
   delivered.forEach((o) =>
@@ -189,13 +223,23 @@ export default function ReportsPage() {
         <div className="max-w-6xl mx-auto p-6 space-y-6">
 
           {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos</CardTitle>
                 <DollarSign className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent><div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Ganancia</CardTitle>
+                <Percent className="h-4 w-4 text-emerald-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-600">${grossProfit.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">{marginPct.toFixed(0)}% margen · costo ${totalCost.toFixed(2)}</p>
+              </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -287,6 +331,15 @@ export default function ReportsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <div className="relative mb-4 max-w-xs">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar folio, cliente o mesa..."
+                      className="pl-9"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -296,10 +349,11 @@ export default function ReportsPage() {
                         <TableHead>Origen</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Ticket</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {orders.map((o) => (
+                      {visibleOrders.map((o) => (
                         <TableRow key={o.id}>
                           <TableCell className="font-bold">{o.order_number}</TableCell>
                           <TableCell>
@@ -317,12 +371,23 @@ export default function ReportsPage() {
                             <Badge className={STATUS_COLORS[o.status]}>{STATUS_LABELS[o.status]}</Badge>
                           </TableCell>
                           <TableCell className="text-right font-semibold">${Number(o.total).toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              title="Reimprimir ticket"
+                              onClick={() => setReprintOrder(o)}
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
-                      {orders.length === 0 && (
+                      {visibleOrders.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            No hay órdenes para esta fecha
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                            {search ? "Sin resultados para tu búsqueda" : "No hay órdenes para esta fecha"}
                           </TableCell>
                         </TableRow>
                       )}
@@ -420,6 +485,14 @@ export default function ReportsPage() {
             </TabsContent>
           </Tabs>
         </div>
+      )}
+
+      {reprintOrder && (
+        <Receipt
+          order={reprintOrder}
+          paymentMethod={(reprintOrder.payment_method as "cash" | "card" | "transfer") ?? undefined}
+          onClose={() => setReprintOrder(null)}
+        />
       )}
     </div>
   );
