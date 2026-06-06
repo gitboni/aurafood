@@ -80,6 +80,36 @@ export type CartItem = {
   modifiers?: SelectedModifier[];
 };
 
+// ── Refunds ─────────────────────────────────────────────────
+
+export type RefundMethod = "cash" | "card" | "transfer" | "store_credit";
+
+export type Refund = {
+  id: string;
+  order_id: string;
+  amount: number;
+  reason: string;
+  refund_method: RefundMethod;
+  refunded_by: string | null;
+  refunded_by_name: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+// ── Audit log ───────────────────────────────────────────────
+
+export type AuditEntry = {
+  id: string;
+  user_id: string | null;
+  user_name: string | null;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  changes: Record<string, unknown> | null;
+  notes: string | null;
+  created_at: string;
+};
+
 // ── Customers (CRM) ─────────────────────────────────────────
 
 export type Customer = {

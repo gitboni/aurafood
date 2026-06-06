@@ -12,6 +12,8 @@ import {
   Store,
   MapPin,
   UserCircle,
+  Monitor,
+  History,
 } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -100,6 +102,20 @@ export default function Home() {
       description: "Multi-ubicación",
       icon: MapPin,
       color: "bg-cyan-500",
+    },
+    {
+      href: "/display",
+      title: "Pantalla pública",
+      description: "Monitor para clientes",
+      icon: Monitor,
+      color: "bg-violet-500",
+    },
+    {
+      href: "/admin/audit",
+      title: "Auditoría",
+      description: "Bitácora de cambios",
+      icon: History,
+      color: "bg-stone-500",
     },
   ];
 

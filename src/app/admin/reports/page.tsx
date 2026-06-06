@@ -5,9 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Order } from "@/lib/types";
 import {
   BarChart3, Home, DollarSign, ShoppingBag, TrendingUp, Clock,
-  LogOut, Loader2, AlertCircle, ChevronDown, Package, Search, Printer, Percent,
+  LogOut, Loader2, AlertCircle, ChevronDown, Package, Search, Printer, Percent, Undo2,
 } from "lucide-react";
 import { Receipt } from "@/components/receipt";
+import { RefundDialog } from "@/components/refund-dialog";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,7 @@ export default function ReportsPage() {
   // Order search + reprint
   const [search, setSearch] = useState("");
   const [reprintOrder, setReprintOrder] = useState<Order | null>(null);
+  const [refundOrder, setRefundOrder] = useState<Order | null>(null);
 
   const supabase = createClient();
 
@@ -379,7 +381,7 @@ export default function ReportsPage() {
                         <TableHead>Origen</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right">Ticket</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -400,17 +402,42 @@ export default function ReportsPage() {
                           <TableCell>
                             <Badge className={STATUS_COLORS[o.status]}>{STATUS_LABELS[o.status]}</Badge>
                           </TableCell>
-                          <TableCell className="text-right font-semibold">${Number(o.total).toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-semibold">
+                            ${Number(o.total).toFixed(2)}
+                            {(() => {
+                              const r = Number((o as { refunded_amount?: number }).refunded_amount) || 0;
+                              return r > 0 ? (
+                                <div className="text-[10px] text-rose-600">-${r.toFixed(2)} reembolso</div>
+                              ) : null;
+                            })()}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              title="Reimprimir ticket"
-                              onClick={() => setReprintOrder(o)}
-                            >
-                              <Printer className="h-4 w-4" />
-                            </Button>
+                            <div className="inline-flex gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                title="Reimprimir ticket"
+                                onClick={() => setReprintOrder(o)}
+                              >
+                                <Printer className="h-4 w-4" />
+                              </Button>
+                              {(() => {
+                                const r = Number((o as { refunded_amount?: number }).refunded_amount) || 0;
+                                const refundable = ["delivered", "ready"].includes(o.status) && r < Number(o.total);
+                                return refundable ? (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 text-rose-600"
+                                    title="Devolución"
+                                    onClick={() => setRefundOrder(o)}
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                  </Button>
+                                ) : null;
+                              })()}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -522,6 +549,14 @@ export default function ReportsPage() {
           order={reprintOrder}
           paymentMethod={(reprintOrder.payment_method as "cash" | "card" | "transfer") ?? undefined}
           onClose={() => setReprintOrder(null)}
+        />
+      )}
+
+      {refundOrder && (
+        <RefundDialog
+          order={refundOrder}
+          onClose={() => setRefundOrder(null)}
+          onDone={() => { setRefundOrder(null); loadOrders(date); }}
         />
       )}
     </div>

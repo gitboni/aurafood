@@ -283,12 +283,28 @@ export default function KitchenPage() {
                 timeSince={timeSince}
                 onCancel={() => setCancelTarget(order.id)}
                 actions={
-                  <Button
-                    className="w-full bg-gray-600 hover:bg-gray-700 transition-transform hover:scale-105"
-                    onClick={() => updateStatus(order.id, "delivered")}
-                  >
-                    Entregado
-                  </Button>
+                  <div className="space-y-2">
+                    {order.customer_phone && (
+                      <Button
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => {
+                          const phone = (order.customer_phone || "").replace(/\D/g, "");
+                          const msg = encodeURIComponent(
+                            `Hola${order.customer_name ? ` ${order.customer_name}` : ""}, tu pedido #${order.order_number} está listo. ¡Buen provecho!`
+                          );
+                          window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+                        }}
+                      >
+                        💬 Avisar por WhatsApp
+                      </Button>
+                    )}
+                    <Button
+                      className="w-full bg-gray-600 hover:bg-gray-700 transition-transform hover:scale-105"
+                      onClick={() => updateStatus(order.id, "delivered")}
+                    >
+                      Entregado
+                    </Button>
+                  </div>
                 }
               />
             ))}
