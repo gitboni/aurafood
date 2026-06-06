@@ -46,7 +46,7 @@ export default function MenuPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h1 className="text-xl font-bold">🍽️ AuraFood</h1>
+          <h1 className="text-xl font-bold">🍽️ El Buen Comer</h1>
           <div className="flex items-center gap-1">
             <ThemeToggle />
           </div>
@@ -56,8 +56,8 @@ export default function MenuPage() {
       <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-6">
         {/* Welcome */}
         <div className="text-center space-y-1">
-          <h2 className="text-2xl font-bold">Nuestro Menú</h2>
-          <p className="text-sm text-muted-foreground">Descubre todo lo que tenemos para ti</p>
+          <h2 className="text-2xl font-bold">El Buen Comer</h2>
+          <p className="text-sm text-muted-foreground">Nuestro Menú — Descubre todo lo que tenemos para ti</p>
         </div>
 
         {/* Search */}
@@ -140,7 +140,7 @@ export default function MenuPage() {
       {/* Footer */}
       <footer className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t py-4 mt-auto">
         <p className="text-center text-xs text-muted-foreground">
-          🍽️ AuraFood — Haz tu pedido en caja
+          🍽️ El Buen Comer — Haz tu pedido en caja
         </p>
       </footer>
     </main>
