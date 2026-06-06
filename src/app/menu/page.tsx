@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -48,7 +49,6 @@ export default function MenuPage() {
   const [error, setError] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<Product | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerTable, setCustomerTable] = useState(() => {
@@ -356,7 +356,6 @@ export default function MenuPage() {
                     product={p}
                     hasModifiers={!!modGroups[p.id]?.length}
                     cartItem={items.find((i) => i.product.id === p.id)}
-                    onImageClick={() => setLightbox(p)}
                     onAdd={() => handleAdd(p)}
                     onInc={() => handleAdd(p)}
                     onDec={() => {
@@ -435,7 +434,6 @@ export default function MenuPage() {
                       product={p}
                       hasModifiers={!!modGroups[p.id]?.length}
                       cartItem={items.find((i) => i.product.id === p.id)}
-                      onImageClick={() => setLightbox(p)}
                       onAdd={() => handleAdd(p)}
                       onInc={() => handleAdd(p)}
                       onDec={() => {
@@ -634,53 +632,6 @@ export default function MenuPage() {
           onClose={() => setPickerProduct(null)}
         />
       )}
-
-      {/* Lightbox — fullscreen photo of a dish */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setLightbox(null)}
-        >
-          <button
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2"
-            onClick={() => setLightbox(null)}
-            aria-label="Cerrar"
-          >
-            <X className="h-7 w-7" />
-          </button>
-          <div
-            className="relative w-full max-w-lg aspect-square rounded-2xl overflow-hidden bg-gray-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {lightbox.image_url ? (
-              <Image src={lightbox.image_url} alt={lightbox.name} fill className="object-contain" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-7xl opacity-40">🍽️</div>
-            )}
-          </div>
-          <div
-            className="mt-4 w-full max-w-lg text-white text-center space-y-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-2xl font-bold">{lightbox.name}</h3>
-            {lightbox.description && (
-              <p className="text-sm text-white/70">{lightbox.description}</p>
-            )}
-            <p className="text-orange-400 font-extrabold text-xl pt-1">${lightbox.price.toFixed(2)}</p>
-            <Button
-              size="lg"
-              className="mt-2 bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={() => {
-                handleAdd(lightbox);
-                setLightbox(null);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              {modGroups[lightbox.id]?.length ? "Elegir opciones" : "Agregar al pedido"}
-            </Button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
@@ -699,7 +650,6 @@ function ProductCard({
   product: p,
   cartItem,
   hasModifiers,
-  onImageClick,
   onAdd,
   onInc,
   onDec,
@@ -707,74 +657,84 @@ function ProductCard({
   product: Product;
   cartItem: { quantity: number } | undefined;
   hasModifiers?: boolean;
-  onImageClick?: () => void;
   onAdd: () => void;
   onInc: () => void;
   onDec: () => void;
 }) {
   const [justAdded, setJustAdded] = useState(false);
 
-  function handleAddClick() {
-    // Haptic feedback on supported mobile devices
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate(35);
-    }
+  const handleAdd = () => {
     onAdd();
-    if (!hasModifiers) {
-      setJustAdded(true);
-      setTimeout(() => setJustAdded(false), 900);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 800);
+    // Haptic feedback if supported
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
     }
-  }
+  };
 
   return (
-    <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col py-0 gap-0">
-      {/* Image area — tap to zoom (lightbox) */}
-      <button
-        type="button"
-        onClick={onImageClick}
-        className="relative aspect-[4/3] w-full bg-muted overflow-hidden shrink-0 cursor-zoom-in"
-      >
-        {p.image_url ? (
-          <Image
-            src={p.image_url}
-            alt={p.name}
-            fill
-            sizes="(max-width: 640px) 50vw, 200px"
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-100 to-amber-50 dark:from-gray-800 dark:to-gray-700">
-            <span className="text-4xl opacity-40">🍽️</span>
+    <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
+      {/* Image with Lightbox */}
+      <Dialog>
+        <DialogTrigger className="relative block w-full aspect-[4/3] bg-orange-50/50 dark:bg-slate-800/50 overflow-hidden shrink-0 cursor-zoom-in group-hover:bg-orange-100/50 transition-colors text-4xl">
+          {p.image_url ? (
+            <Image src={p.image_url} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center opacity-30">
+              🍽️
+            </span>
+          )}
+          {p.featured && (
+            <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0 shadow-sm">
+              ⭐ Destacado
+            </Badge>
+          )}
+          {/* Subtle gradient overlay at bottom for depth */}
+          <span className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          {/* Zoom hint */}
+          <span className="absolute bottom-1.5 right-1.5 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <ZoomIn className="h-3.5 w-3.5" />
+          </span>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md p-1 bg-transparent border-none shadow-none">
+          <DialogTitle className="sr-only">{p.name}</DialogTitle>
+          <div className="relative aspect-square sm:aspect-video w-full rounded-xl overflow-hidden bg-black/90 backdrop-blur-sm">
+            {p.image_url ? (
+              <Image src={p.image_url} alt={p.name} fill className="object-contain" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-6xl">🍽️</div>
+            )}
           </div>
-        )}
-        {p.featured && (
-          <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0 shadow">
-            ⭐ Destacado
-          </Badge>
-        )}
-        {/* Zoom hint */}
-        <span className="absolute bottom-1.5 right-1.5 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <ZoomIn className="h-3.5 w-3.5" />
-        </span>
-      </button>
-      <div className="p-2.5 flex flex-col flex-1 gap-1.5">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-xl mt-2">
+            <h3 className="font-bold text-lg">{p.name}</h3>
+            {p.description && <p className="text-sm text-muted-foreground mt-1">{p.description}</p>}
+            <p className="text-orange-600 font-bold mt-2">${p.price.toFixed(2)}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="p-3 flex flex-col flex-1 gap-1.5">
         <div className="flex-1">
-          <p className="font-semibold text-sm leading-snug">{p.name}</p>
+          <div className="flex items-start gap-1">
+            <p className="font-semibold text-sm leading-snug flex-1">{p.name}</p>
+          </div>
           {p.description && (
-            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
               {p.description}
             </p>
           )}
         </div>
-        <div className="flex items-center justify-between pt-0.5">
+        
+        <div className="flex items-center justify-between pt-1">
           <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
           {cartItem && !hasModifiers ? (
-            <div className="flex items-center gap-1">
-              <Button size="icon" variant="outline" className="h-6 w-6 active:scale-90 transition-transform" onClick={onDec}>
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-background shadow-sm" onClick={onDec}>
                 <Minus className="h-3 w-3" />
               </Button>
               <span className="w-5 text-center text-xs font-bold">{cartItem.quantity}</span>
-              <Button size="icon" variant="outline" className="h-6 w-6 active:scale-90 transition-transform" onClick={onInc}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-background shadow-sm" onClick={onInc}>
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
@@ -784,7 +744,7 @@ function ProductCard({
               className={`h-7 text-xs text-white px-2.5 transition-all active:scale-90 ${
                 justAdded ? "bg-green-500 hover:bg-green-500" : "bg-orange-500 hover:bg-orange-600"
               }`}
-              onClick={handleAddClick}
+              onClick={handleAdd}
             >
               {justAdded ? (
                 <>
