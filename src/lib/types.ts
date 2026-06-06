@@ -42,6 +42,7 @@ export type Order = {
   discount_amount: number;
   tip: number;
   payment_method: PaymentMethod;
+  order_type: OrderType;
   notes: string | null;
   cancel_reason: string | null;
   cancelled_by: string | null;
@@ -135,7 +136,54 @@ export type Settings = {
   tax_enabled: boolean;
   tax_rate: number;
   tax_label: string;
+  tax_inclusive: boolean;
+  auto_print_kitchen: boolean;
+  enable_online_payment: boolean;
+  enable_qr_tip: boolean;
+  enable_qr_ordering: boolean;
+  loyalty_enabled: boolean;
+  loyalty_points_per_currency: number;
   updated_at: string;
+};
+
+export type OrderType = "dine_in" | "takeout" | "delivery";
+
+export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
+  dine_in: "Comer aquí",
+  takeout: "Para llevar",
+  delivery: "Delivery",
+};
+
+export type CashMovement = {
+  id: string;
+  shift_id: string;
+  type: "in" | "out";
+  amount: number;
+  reason: string;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+};
+
+export type Combo = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  image_url: string | null;
+  available: boolean;
+  featured: boolean;
+  sort_order: number;
+  created_at: string;
+  combo_items?: ComboItem[];
+};
+
+export type ComboItem = {
+  id: string;
+  combo_id: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
 };
 
 // ── Roles ───────────────────────────────────────────────────

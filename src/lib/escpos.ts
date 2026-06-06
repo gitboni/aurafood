@@ -123,6 +123,80 @@ export function buildReceiptEscPos(order: Order, settings: Settings, paymentMeth
   return concat(parts);
 }
 
+// Kitchen comanda — big text, items + notes, NO prices
+export function buildKitchenTicket(order: Order): Uint8Array {
+  const d = new Date(order.created_at);
+  const timeStr = d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  const typeLabel = order.order_type === "takeout" ? "PARA LLEVAR"
+    : order.order_type === "delivery" ? "DELIVERY" : "COMER AQUI";
+
+  const parts: (Uint8Array | string)[] = [];
+  parts.push(INIT, ALIGN_CENTER, BOLD_ON, SIZE_DOUBLE);
+  parts.push(`COMANDA #${String(order.order_number).padStart(4, "0")}\n`);
+  parts.push(SIZE_NORMAL, BOLD_OFF);
+  parts.push(`${typeLabel}  ${timeStr}\n`);
+  if (order.source === "qr") parts.push("** PEDIDO QR **\n");
+  parts.push(ALIGN_LEFT, line("="));
+  if (order.customer_name) parts.push(`Cliente: ${order.customer_name}\n`);
+  if (order.customer_table) parts.push(`Mesa: ${order.customer_table}\n`);
+  if (order.customer_name || order.customer_table) parts.push(line("-"));
+
+  parts.push(BOLD_ON, SIZE_DOUBLE);
+  for (const it of order.order_items ?? []) {
+    parts.push(`${it.quantity}x ${it.product_name}\n`);
+    if (it.notes) { parts.push(SIZE_NORMAL, `   > ${it.notes}\n`, SIZE_DOUBLE); }
+  }
+  parts.push(SIZE_NORMAL, BOLD_OFF);
+
+  if (order.notes) { parts.push(line("-"), `NOTA: ${order.notes}\n`); }
+  parts.push(FEED(3), CUT);
+  return concat(parts);
+}
+
+// Auto-print to an ALREADY-AUTHORIZED USB printer (no user gesture needed).
+// Returns true if printed, false if no paired device / failed.
+export async function autoPrintEscPos(payload: Uint8Array): Promise<boolean> {
+  const nav = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { usb?: { getDevices: () => Promise<unknown[]> } }) : null;
+  if (!nav?.usb) return false;
+  try {
+    const devices = await nav.usb.getDevices() as {
+      open: () => Promise<void>;
+      selectConfiguration: (n: number) => Promise<void>;
+      claimInterface: (n: number) => Promise<void>;
+      configuration: { interfaces: { interfaceNumber: number; alternate: { endpoints: { direction: string; endpointNumber: number }[] } }[] } | null;
+      transferOut: (n: number, data: Uint8Array) => Promise<unknown>;
+      close: () => Promise<void>;
+    }[];
+    if (!devices || devices.length === 0) return false;
+    const device = devices[0];
+    await device.open();
+    if (!device.configuration) await device.selectConfiguration(1);
+    const iface = device.configuration!.interfaces[0];
+    await device.claimInterface(iface.interfaceNumber);
+    const ep = iface.alternate.endpoints.find((e) => e.direction === "out");
+    if (!ep) throw new Error("no OUT endpoint");
+    await device.transferOut(ep.endpointNumber, payload);
+    await device.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Pair a printer once (requires user gesture) so auto-print can use it later.
+export async function pairPrinter(): Promise<boolean> {
+  const nav = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { usb?: { requestDevice: (opts: object) => Promise<unknown> } }) : null;
+  if (!nav?.usb) return false;
+  try {
+    await nav.usb.requestDevice({ filters: [{ classCode: 7 }] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Try Web USB → fallback to download .bin
 export async function printEscPos(payload: Uint8Array, filename = "ticket.bin"): Promise<"web-usb" | "download"> {
   const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { usb?: { requestDevice: (opts: object) => Promise<unknown> } }) : null;

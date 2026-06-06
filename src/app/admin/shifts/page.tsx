@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Shift } from "@/lib/types";
+import { Shift, CashMovement } from "@/lib/types";
 import {
   Home, LogOut, DollarSign, Clock, TrendingUp, AlertTriangle,
+  ArrowDownCircle, ArrowUpCircle, Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,10 @@ export default function ShiftsPage() {
   const [closeNotes, setCloseNotes] = useState("");
   const [shiftStats, setShiftStats] = useState({ sales: 0, orders: 0, cashSales: 0, cancelled: 0 });
   const [loading, setLoading] = useState(true);
+  const [movements, setMovements] = useState<CashMovement[]>([]);
+  const [cashType, setCashType] = useState<"in" | "out">("out");
+  const [cashAmount, setCashAmount] = useState("");
+  const [cashReason, setCashReason] = useState("");
 
   const supabase = createClient();
 
@@ -56,6 +61,15 @@ export default function ShiftsPage() {
           cancelled: orders.filter((o) => o.status === "cancelled").length,
         });
       }
+
+      const { data: movs } = await supabase
+        .from("cash_movements")
+        .select("*")
+        .eq("shift_id", open.id)
+        .order("created_at", { ascending: false });
+      if (movs) setMovements(movs);
+    } else {
+      setMovements([]);
     }
 
     const { data: past } = await supabase
@@ -97,12 +111,42 @@ export default function ShiftsPage() {
     loadData();
   }
 
+  async function addMovement() {
+    if (!currentShift) return;
+    const amount = parseFloat(cashAmount);
+    if (isNaN(amount) || amount <= 0) { toast.error("Ingresa un monto válido"); return; }
+    if (!cashReason.trim()) { toast.error("Indica el motivo"); return; }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = user
+      ? await supabase.from("profiles").select("display_name").eq("id", user.id).single()
+      : { data: null };
+
+    const { error } = await supabase.from("cash_movements").insert({
+      shift_id: currentShift.id,
+      type: cashType,
+      amount,
+      reason: cashReason,
+      created_by: user?.id ?? null,
+      created_by_name: profile?.display_name || user?.email || null,
+    });
+
+    if (error) { toast.error("Error al registrar"); return; }
+    toast.success(cashType === "in" ? "Entrada registrada" : "Salida registrada");
+    setCashAmount("");
+    setCashReason("");
+    loadData();
+  }
+
+  const cashIn = movements.filter((m) => m.type === "in").reduce((s, m) => s + Number(m.amount), 0);
+  const cashOut = movements.filter((m) => m.type === "out").reduce((s, m) => s + Number(m.amount), 0);
+
   async function closeShift() {
     if (!currentShift) return;
     const cash = parseFloat(closingCash);
     if (isNaN(cash) || cash < 0) { toast.error("Ingresa el efectivo en caja"); return; }
 
-    const expected = currentShift.opening_cash + shiftStats.cashSales;
+    const expected = currentShift.opening_cash + shiftStats.cashSales + cashIn - cashOut;
     const diff = cash - expected;
 
     const { error } = await supabase
@@ -127,7 +171,7 @@ export default function ShiftsPage() {
     loadData();
   }
 
-  const expected = currentShift ? currentShift.opening_cash + shiftStats.cashSales : 0;
+  const expected = currentShift ? currentShift.opening_cash + shiftStats.cashSales + cashIn - cashOut : 0;
   const closingVal = parseFloat(closingCash);
   const diff = !isNaN(closingVal) ? closingVal - expected : null;
 
@@ -187,6 +231,63 @@ export default function ShiftsPage() {
               <Card><CardContent className="p-4 text-center"><p className="text-sm text-muted-foreground">Esperado en caja</p><p className="text-2xl font-bold">${expected.toFixed(2)}</p></CardContent></Card>
               <Card><CardContent className="p-4 text-center"><p className="text-sm text-muted-foreground">Canceladas</p><p className="text-2xl font-bold text-red-500">{shiftStats.cancelled}</p></CardContent></Card>
             </div>
+
+            {/* Cash movements (entradas/salidas) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-amber-500" /> Entradas / Salidas de Efectivo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex gap-1">
+                    <Button type="button" size="sm" variant={cashType === "out" ? "default" : "outline"}
+                      className={cashType === "out" ? "bg-red-500 hover:bg-red-600" : ""}
+                      onClick={() => setCashType("out")}>
+                      <ArrowUpCircle className="h-4 w-4 mr-1" /> Salida
+                    </Button>
+                    <Button type="button" size="sm" variant={cashType === "in" ? "default" : "outline"}
+                      className={cashType === "in" ? "bg-green-500 hover:bg-green-600" : ""}
+                      onClick={() => setCashType("in")}>
+                      <ArrowDownCircle className="h-4 w-4 mr-1" /> Entrada
+                    </Button>
+                  </div>
+                  <div className="w-28">
+                    <Input type="number" step="0.01" placeholder="Monto" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
+                  </div>
+                  <div className="flex-1 min-w-[160px]">
+                    <Input placeholder="Motivo (ej: compra de servilletas)" value={cashReason} onChange={(e) => setCashReason(e.target.value)} />
+                  </div>
+                  <Button className="bg-orange-500 hover:bg-orange-600" onClick={addMovement}>
+                    <Plus className="h-4 w-4 mr-1" /> Registrar
+                  </Button>
+                </div>
+
+                {movements.length > 0 && (
+                  <div className="space-y-1">
+                    {movements.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between text-sm p-2 bg-muted/40 rounded">
+                        <div className="flex items-center gap-2">
+                          {m.type === "in"
+                            ? <ArrowDownCircle className="h-4 w-4 text-green-500" />
+                            : <ArrowUpCircle className="h-4 w-4 text-red-500" />}
+                          <span>{m.reason}</span>
+                          <span className="text-xs text-muted-foreground">· {m.created_by_name}</span>
+                        </div>
+                        <span className={`font-bold ${m.type === "in" ? "text-green-600" : "text-red-600"}`}>
+                          {m.type === "in" ? "+" : "−"}${Number(m.amount).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm pt-1 border-t">
+                      <span className="text-muted-foreground">Entradas: <span className="text-green-600 font-bold">+${cashIn.toFixed(2)}</span></span>
+                      <span className="text-muted-foreground">Salidas: <span className="text-red-600 font-bold">−${cashOut.toFixed(2)}</span></span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader><CardTitle>Cerrar Turno</CardTitle></CardHeader>

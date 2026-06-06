@@ -82,6 +82,8 @@ export default function POSPage() {
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSync, setPendingSync] = useState(0);
+  const [taxCfg, setTaxCfg] = useState({ enabled: false, rate: 0, inclusive: true });
+  const [orderType, setOrderType] = useState<"dine_in" | "takeout" | "delivery">("dine_in");
 
   // ── Orders tab state ────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>("sell");
@@ -183,6 +185,20 @@ export default function POSPage() {
       setCurrentShiftId(data?.id ?? null);
     }
     loadShift();
+
+    async function loadTaxCfg() {
+      const { data } = await supabase
+        .from("settings")
+        .select("tax_enabled, tax_rate, tax_inclusive")
+        .eq("id", 1)
+        .maybeSingle();
+      if (data) setTaxCfg({
+        enabled: !!data.tax_enabled,
+        rate: Number(data.tax_rate) || 0,
+        inclusive: data.tax_inclusive ?? true,
+      });
+    }
+    loadTaxCfg();
   }, []);
 
   // ── Always-on alert for incoming QR orders (any tab) ───────
@@ -296,7 +312,12 @@ export default function POSPage() {
   const discPct = Math.min(100, Math.max(0, parseFloat(discountPercent) || 0));
   const discountAmount = +(subtotal * (discPct / 100)).toFixed(2);
   const tip = Math.max(0, parseFloat(tipAmount) || 0);
-  const orderTotal = +(subtotal - discountAmount + tip).toFixed(2);
+  const taxableBase = +(subtotal - discountAmount).toFixed(2);
+  // Tax added on top only when enabled AND exclusive mode
+  const taxOnTop = taxCfg.enabled && !taxCfg.inclusive
+    ? +(taxableBase * (taxCfg.rate / 100)).toFixed(2)
+    : 0;
+  const orderTotal = +(taxableBase + taxOnTop + tip).toFixed(2);
   const paid = parseFloat(amountPaid);
 
   const filtered = products.filter((p) => {
@@ -361,6 +382,7 @@ export default function POSPage() {
       tip,
       total: orderTotal,
       payment_method: paymentMethod,
+      order_type: orderType,
       shift_id: currentShiftId,
       notes: notes || null,
       source: "pos",
@@ -391,6 +413,7 @@ export default function POSPage() {
       setAmountPaid("");
       setDiscountPercent("");
       setTipAmount("");
+      setOrderType("dine_in");
     }
 
     // ── Offline: queue locally, sync on reconnect ──
@@ -815,6 +838,25 @@ export default function POSPage() {
             {/* Footer: form scrolls, total + button always pinned */}
             <div className="border-t shrink-0 flex flex-col min-h-0 max-h-[62%] bg-white">
             <div className="overflow-y-auto p-4 space-y-3">
+              {/* Order type selector */}
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { v: "dine_in", label: "🍽️ Aquí" },
+                  { v: "takeout", label: "🥡 Llevar" },
+                  { v: "delivery", label: "🛵 Delivery" },
+                ] as const).map((opt) => (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    variant={orderType === opt.v ? "default" : "outline"}
+                    size="sm"
+                    className={orderType === opt.v ? "bg-orange-500 hover:bg-orange-600" : ""}
+                    onClick={() => setOrderType(opt.v)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   placeholder="Cliente"
@@ -950,6 +992,12 @@ export default function POSPage() {
                   <div className="flex justify-between text-green-600">
                     <span>Descuento ({discPct}%)</span>
                     <span>−${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {taxOnTop > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>ITBIS ({Number(taxCfg.rate)}%)</span>
+                    <span>+${taxOnTop.toFixed(2)}</span>
                   </div>
                 )}
                 {tip > 0 && (

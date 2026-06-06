@@ -71,6 +71,7 @@ export function Receipt({
   const TAX_LABEL = settings?.tax_label ?? "ITBIS";
 
   const total = Number(order.total);
+  // order.total always already includes tax by checkout time (POS adds it when tax is exclusive).
   const taxAmount = SHOW_TAX ? total - total / (1 + TAX_RATE) : 0;
   const subtotalEx = SHOW_TAX ? total - taxAmount : total;
   const change = paymentMethod === "cash" && amountPaid != null ? amountPaid - total : null;
@@ -164,6 +165,12 @@ export function Receipt({
             label={`Folio: #${String(order.order_number).padStart(4, "0")}`}
             value={order.source === "qr" ? "● QR" : "● POS"}
           />
+          {order.order_type && (
+            <Row
+              label="Tipo:"
+              value={order.order_type === "dine_in" ? "Comer aquí" : order.order_type === "takeout" ? "Para llevar" : "Delivery"}
+            />
+          )}
           <Row label={`Fecha: ${dateStr}`} value="" />
           <Row label={`Hora:  ${timeStr}`} value="" />
 

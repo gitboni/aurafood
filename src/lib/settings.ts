@@ -14,6 +14,13 @@ const DEFAULT: Settings = {
   tax_enabled: process.env.NEXT_PUBLIC_SHOW_TAX === "true",
   tax_rate: parseFloat(process.env.NEXT_PUBLIC_TAX_RATE ?? "18"),
   tax_label: process.env.NEXT_PUBLIC_TAX_LABEL ?? "ITBIS",
+  tax_inclusive: true,
+  auto_print_kitchen: false,
+  enable_online_payment: false,
+  enable_qr_tip: false,
+  enable_qr_ordering: true,
+  loyalty_enabled: false,
+  loyalty_points_per_currency: 1,
   updated_at: new Date(0).toISOString(),
 };
 

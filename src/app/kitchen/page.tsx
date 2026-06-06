@@ -21,6 +21,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CancelDialog } from "@/components/cancel-dialog";
 import { LowStockAlert } from "@/components/low-stock-alert";
+import { autoPrintEscPos, buildKitchenTicket, pairPrinter } from "@/lib/escpos";
+import { Printer } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -54,9 +56,13 @@ export default function KitchenPage() {
   const [loading, setLoading] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [autoPrint, setAutoPrint] = useState(false);
   const prevCountRef = useRef(0);
   // Ref so the realtime callback always reads the latest value without re-subscribing
   const soundEnabledRef = useRef(true);
+  const autoPrintRef = useRef(false);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const firstLoadRef = useRef(true);
   const supabase = createClient();
 
   function toggleSound() {
@@ -102,12 +108,33 @@ export default function KitchenPage() {
         toast.info("🔔 ¡Nuevo pedido!");
       }
       prevCountRef.current = data.length;
+
+      // Auto-print newly-arrived orders (skip the very first load)
+      const newOnes = data.filter((o) => !seenIdsRef.current.has(o.id));
+      data.forEach((o) => seenIdsRef.current.add(o.id));
+      if (!firstLoadRef.current && autoPrintRef.current && newOnes.length > 0) {
+        for (const o of newOnes) {
+          const ok = await autoPrintEscPos(buildKitchenTicket(o));
+          if (!ok) {
+            toast.error("No se pudo imprimir — conecta la impresora", { duration: 5000 });
+            break;
+          }
+        }
+      }
+      firstLoadRef.current = false;
       setOrders(data);
     }
     setLoading(false);
   }
 
   useEffect(() => {
+    supabase.from("settings").select("auto_print_kitchen").eq("id", 1).maybeSingle()
+      .then(({ data }) => {
+        const on = !!data?.auto_print_kitchen;
+        autoPrintRef.current = on;
+        setAutoPrint(on);
+      });
+
     loadOrders();
 
     const channel = supabase
@@ -201,6 +228,20 @@ export default function KitchenPage() {
           <span className="text-blue-400">● {preparing.length} Preparando</span>
           <span className="text-green-400">● {ready.length} Listos</span>
         </div>
+        {autoPrint && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const ok = await pairPrinter();
+              toast[ok ? "success" : "error"](ok ? "Impresora conectada" : "No se conectó");
+            }}
+            className="border-gray-600 text-white hover:bg-gray-700"
+            title="Conectar impresora térmica (una vez)"
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -368,6 +409,11 @@ function OrderCard({
           >
             {order.source === "qr" ? "QR" : "POS"}
           </Badge>
+          {order.order_type && order.order_type !== "dine_in" && (
+            <Badge variant="outline" className="text-xs border-cyan-500 text-cyan-300">
+              {order.order_type === "takeout" ? "🥡 Llevar" : "🛵 Delivery"}
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-2">

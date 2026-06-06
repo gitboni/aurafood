@@ -30,6 +30,8 @@ export default function SettingsPage() {
       data ?? {
         id: 1, restaurant_name: "Mi Restaurante", logo_url: null, favicon_url: null,
         address: null, phone: null, rfc: null, tax_enabled: false, tax_rate: 18, tax_label: "ITBIS",
+        tax_inclusive: true, auto_print_kitchen: false, enable_online_payment: false,
+        enable_qr_tip: false, enable_qr_ordering: true, loyalty_enabled: false, loyalty_points_per_currency: 1,
         updated_at: new Date().toISOString(),
       }
     );
@@ -82,6 +84,13 @@ export default function SettingsPage() {
       tax_enabled: settings.tax_enabled,
       tax_rate: settings.tax_rate,
       tax_label: settings.tax_label,
+      tax_inclusive: settings.tax_inclusive,
+      auto_print_kitchen: settings.auto_print_kitchen,
+      enable_online_payment: settings.enable_online_payment,
+      enable_qr_tip: settings.enable_qr_tip,
+      enable_qr_ordering: settings.enable_qr_ordering,
+      loyalty_enabled: settings.loyalty_enabled,
+      loyalty_points_per_currency: settings.loyalty_points_per_currency,
       updated_at: new Date().toISOString(),
     });
     setSaving(false);
@@ -196,17 +205,93 @@ export default function SettingsPage() {
               <Label htmlFor="tax">Desglosar impuesto en la factura</Label>
             </div>
             {settings.tax_enabled && (
-              <div className="grid grid-cols-2 gap-4 pl-6">
-                <div>
-                  <Label>Nombre del impuesto</Label>
-                  <Input value={settings.tax_label}
-                    onChange={(e) => set("tax_label", e.target.value)} className="mt-1" placeholder="ITBIS" />
+              <div className="space-y-4 pl-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nombre del impuesto</Label>
+                    <Input value={settings.tax_label}
+                      onChange={(e) => set("tax_label", e.target.value)} className="mt-1" placeholder="ITBIS" />
+                  </div>
+                  <div>
+                    <Label>Porcentaje (%)</Label>
+                    <Input type="number" min="0" max="100" step="0.01" value={settings.tax_rate}
+                      onChange={(e) => set("tax_rate", parseFloat(e.target.value) || 0)} className="mt-1" />
+                  </div>
                 </div>
                 <div>
-                  <Label>Porcentaje (%)</Label>
-                  <Input type="number" min="0" max="100" step="0.01" value={settings.tax_rate}
-                    onChange={(e) => set("tax_rate", parseFloat(e.target.value) || 0)} className="mt-1" />
+                  <Label>Modo de cálculo</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Button type="button" variant={settings.tax_inclusive ? "default" : "outline"} size="sm"
+                      className={settings.tax_inclusive ? "bg-orange-500 hover:bg-orange-600" : ""}
+                      onClick={() => set("tax_inclusive", true)}>
+                      Incluido en el precio
+                    </Button>
+                    <Button type="button" variant={!settings.tax_inclusive ? "default" : "outline"} size="sm"
+                      className={!settings.tax_inclusive ? "bg-orange-500 hover:bg-orange-600" : ""}
+                      onClick={() => set("tax_inclusive", false)}>
+                      Sumado por encima
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {settings.tax_inclusive
+                      ? "El precio del menú ya incluye el impuesto (se desglosa en la factura)."
+                      : "El impuesto se suma al precio del menú (precio + impuesto = total)."}
+                  </p>
                 </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Operación</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <Toggle
+              label="Auto-impresión en cocina"
+              desc="Imprime la comanda automáticamente al entrar un pedido nuevo (impresora térmica USB)."
+              checked={settings.auto_print_kitchen}
+              onChange={(v) => set("auto_print_kitchen", v)}
+            />
+            <Separator />
+            <Toggle
+              label="Pedidos desde el QR"
+              desc="Permite a los clientes ordenar desde el menú QR. Si lo apagas, el QR solo muestra la carta."
+              checked={settings.enable_qr_ordering}
+              onChange={(v) => set("enable_qr_ordering", v)}
+            />
+            <Toggle
+              label="Propina en el QR"
+              desc="Muestra opciones de propina al cliente al hacer su pedido."
+              checked={settings.enable_qr_tip}
+              onChange={(v) => set("enable_qr_tip", v)}
+            />
+            <Toggle
+              label="Pago en línea desde el QR"
+              desc="Permite pagar con MercadoPago al ordenar desde el QR. Requiere configurar el token."
+              checked={settings.enable_online_payment}
+              onChange={(v) => set("enable_online_payment", v)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Programa de Lealtad</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <Toggle
+              label="Activar puntos de lealtad"
+              desc="Los clientes acumulan puntos por cada compra."
+              checked={settings.loyalty_enabled}
+              onChange={(v) => set("loyalty_enabled", v)}
+            />
+            {settings.loyalty_enabled && (
+              <div className="pl-6">
+                <Label>Puntos por cada $1 gastado</Label>
+                <Input type="number" min="0" step="0.1" value={settings.loyalty_points_per_currency}
+                  onChange={(e) => set("loyalty_points_per_currency", parseFloat(e.target.value) || 0)}
+                  className="mt-1 w-32" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ej: 1 punto por $1 → una compra de $100 da 100 puntos.
+                </p>
               </div>
             )}
           </CardContent>
@@ -217,6 +302,30 @@ export default function SettingsPage() {
           Guardar Ajustes
         </Button>
       </div>
+    </div>
+  );
+}
+
+function Toggle({
+  label, desc, checked, onChange,
+}: {
+  label: string; desc: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="font-medium text-sm">{label}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${checked ? "bg-orange-500" : "bg-gray-300"}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
+      </button>
     </div>
   );
 }
