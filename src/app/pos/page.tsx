@@ -522,7 +522,7 @@ export default function POSPage() {
               <p className="text-sm text-muted-foreground">{orderCount} items</p>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 min-h-0 p-4">
               {items.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
                   Agrega productos a la orden
@@ -575,7 +575,9 @@ export default function POSPage() {
               )}
             </ScrollArea>
 
-            <div className="p-4 border-t space-y-3 shrink-0 bg-white z-10">
+            {/* Footer: form scrolls, total + button always pinned */}
+            <div className="border-t shrink-0 flex flex-col min-h-0 max-h-[62%] bg-white">
+            <div className="overflow-y-auto p-4 space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   placeholder="Cliente"
@@ -680,9 +682,10 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <Separator />
+            </div>
 
-              {/* Breakdown */}
+            {/* Pinned: breakdown + action button (always visible) */}
+            <div className="p-4 pt-3 border-t shrink-0 space-y-2 bg-white">
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
@@ -700,7 +703,7 @@ export default function POSPage() {
                     <span>+${tip.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center text-xl font-bold pt-1">
+                <div className="flex justify-between items-center text-lg font-bold">
                   <span>Total</span>
                   <span className="text-orange-600">${orderTotal.toFixed(2)}</span>
                 </div>
@@ -715,6 +718,7 @@ export default function POSPage() {
                 {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {sending ? "Creando..." : `Crear Orden — $${orderTotal.toFixed(2)}`}
               </Button>
+            </div>
             </div>
           </div>
         </div>
