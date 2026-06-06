@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Receipt } from "@/components/receipt";
+import { Receipt, type PaymentMethod } from "@/components/receipt";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
 
@@ -39,6 +39,8 @@ export default function POSPage() {
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [amountPaid, setAmountPaid] = useState("");
 
   const { items, addItem, updateQuantity, clearCart, total, count } = useCartStore();
   const supabase = createClient();
@@ -118,6 +120,7 @@ export default function POSPage() {
       setCustomerName("");
       setCustomerTable("");
       setNotes("");
+      setAmountPaid("");
     } catch {
       toast.error("Error al crear la orden");
     } finally {
@@ -146,7 +149,16 @@ export default function POSPage() {
   return (
     <div className="flex h-screen bg-gray-100">
       {receiptOrder && (
-        <Receipt order={receiptOrder} onClose={() => setReceiptOrder(null)} />
+        <Receipt
+          order={receiptOrder}
+          paymentMethod={paymentMethod}
+          amountPaid={
+            paymentMethod === "cash" && amountPaid
+              ? parseFloat(amountPaid)
+              : undefined
+          }
+          onClose={() => setReceiptOrder(null)}
+        />
       )}
 
       {/* Left panel — Products */}
@@ -314,6 +326,64 @@ export default function POSPage() {
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
           />
+
+          {/* Payment method */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Forma de Pago
+            </p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  { value: "cash", label: "Efectivo", emoji: "💵" },
+                  { value: "card", label: "Tarjeta", emoji: "💳" },
+                  { value: "transfer", label: "Transfer.", emoji: "📱" },
+                ] as { value: PaymentMethod; label: string; emoji: string }[]
+              ).map((pm) => (
+                <button
+                  key={pm.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(pm.value)}
+                  className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
+                    paymentMethod === pm.value
+                      ? "bg-orange-50 border-orange-400 text-orange-700"
+                      : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                  }`}
+                >
+                  <span className="text-base">{pm.emoji}</span>
+                  {pm.label}
+                </button>
+              ))}
+            </div>
+            {paymentMethod === "cash" && (
+              <div className="space-y-1">
+                <Input
+                  type="number"
+                  placeholder="Monto recibido"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  step="0.01"
+                  min={0}
+                />
+                {parseFloat(amountPaid) > 0 &&
+                  parseFloat(amountPaid) >= orderTotal && (
+                    <div className="flex justify-between text-sm font-semibold text-green-700 bg-green-50 px-2 py-1 rounded">
+                      <span>Cambio:</span>
+                      <span>
+                        ${(parseFloat(amountPaid) - orderTotal).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                {parseFloat(amountPaid) > 0 &&
+                  parseFloat(amountPaid) < orderTotal && (
+                    <p className="text-xs text-destructive">
+                      Falta: ${(orderTotal - parseFloat(amountPaid)).toFixed(2)}
+                    </p>
+                  )}
+              </div>
+            )}
+          </div>
+
           <Separator />
           <div className="flex justify-between items-center text-xl font-bold">
             <span>Total</span>

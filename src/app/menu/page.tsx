@@ -14,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   CreditCard,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,11 +40,11 @@ const ENABLE_PAYMENTS = process.env.NEXT_PUBLIC_ENABLE_PAYMENTS === "true";
 export default function MenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerTable, setCustomerTable] = useState("");
   const [notes, setNotes] = useState("");
@@ -63,10 +64,7 @@ export default function MenuPage() {
         ]);
         if (catRes.error) throw catRes.error;
         if (prodRes.error) throw prodRes.error;
-        if (catRes.data) {
-          setCategories(catRes.data);
-          if (catRes.data.length > 0) setActiveCategory(catRes.data[0].id);
-        }
+        if (catRes.data) setCategories(catRes.data);
         if (prodRes.data) setProducts(prodRes.data);
       } catch {
         setError(true);
@@ -77,15 +75,29 @@ export default function MenuPage() {
     load();
   }, []);
 
-  const filteredProducts = products.filter((p) => {
-    const matchCategory = !activeCategory || p.category_id === activeCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCategory && matchSearch;
-  });
-
-  const featured = products.filter((p) => p.featured);
   const cartCount = count();
   const cartTotal = total();
+  const featured = products.filter((p) => p.featured);
+
+  // When searching: flat results. Otherwise: grouped by category.
+  const searchResults = search
+    ? products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+    : null;
+
+  const productsByCategory = categories
+    .map((cat) => ({
+      cat,
+      items: products.filter((p) => p.category_id === cat.id),
+    }))
+    .filter(({ items }) => items.length > 0);
+
+  function scrollToSection(catId: string) {
+    document.getElementById(`section-${catId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    setActiveSection(catId);
+  }
 
   async function placeOrder(payOnline: boolean) {
     if (items.length === 0) return;
@@ -104,7 +116,7 @@ export default function MenuPage() {
         .select()
         .single();
 
-      if (orderError || !order) throw orderError ?? new Error("No order returned");
+      if (orderError || !order) throw orderError ?? new Error();
 
       const orderItems = items.map((i) => ({
         order_id: order.id,
@@ -176,21 +188,21 @@ export default function MenuPage() {
 
   return (
     <main className="flex-1 flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h1 className="text-xl font-bold">🍽️ {RESTAURANT_NAME}</h1>
+      {/* ── Sticky header ── */}
+      <header className="sticky top-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b">
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+          <h1 className="text-lg font-extrabold tracking-tight">🍽️ {RESTAURANT_NAME}</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button
               variant="outline"
               size="sm"
-              className="relative"
+              className="relative gap-1.5"
               onClick={() => setCartOpen(true)}
               disabled={cartCount === 0}
             >
-              <ShoppingCart className="h-4 w-4 mr-1.5" />
-              Carrito
+              <ShoppingCart className="h-4 w-4" />
+              <span className="hidden sm:inline">Carrito</span>
               {cartCount > 0 && (
                 <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-orange-500 text-[10px] text-white">
                   {cartCount}
@@ -199,145 +211,179 @@ export default function MenuPage() {
             </Button>
           </div>
         </div>
-      </header>
-
-      <div className="max-w-lg mx-auto w-full px-4 py-4 space-y-6 pb-28">
-        {/* Welcome */}
-        <div className="text-center space-y-1">
-          <h2 className="text-2xl font-bold">{RESTAURANT_NAME}</h2>
-          <p className="text-sm text-muted-foreground">
-            Nuestro Menú — Descubre todo lo que tenemos para ti
-          </p>
-        </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar en el menú..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="max-w-lg mx-auto px-4 pb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar en el menú..."
+              className="pl-9 h-9 bg-white/80 dark:bg-gray-800/80"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setSearch("")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
+      </header>
 
-        {/* Featured */}
-        {featured.length > 0 && !search && (
-          <section>
-            <h3 className="text-lg font-semibold mb-3">⭐ Destacados</h3>
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4">
-              {featured.map((p) => (
-                <Card key={p.id} className="min-w-[160px] p-3 shrink-0">
-                  {p.image_url && (
-                    <div className="relative h-24 bg-muted rounded-md mb-2 overflow-hidden">
-                      <Image src={p.image_url} alt={p.name} fill className="object-cover" />
-                    </div>
-                  )}
-                  <p className="font-medium text-sm truncate">{p.name}</p>
-                  <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Categories */}
-        {!search && (
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+      {/* ── Category nav (hidden when searching) ── */}
+      {!search && categories.length > 0 && (
+        <div className="sticky top-[105px] z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b">
+          <div className="max-w-lg mx-auto px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar">
             {categories.map((cat) => (
               <Button
                 key={cat.id}
-                variant={activeCategory === cat.id ? "default" : "outline"}
+                variant={activeSection === cat.id ? "default" : "ghost"}
                 size="sm"
-                className={`shrink-0 rounded-full ${
-                  activeCategory === cat.id ? "bg-orange-500 hover:bg-orange-600" : ""
+                className={`shrink-0 rounded-full text-xs h-7 ${
+                  activeSection === cat.id
+                    ? "bg-orange-500 hover:bg-orange-600 text-white"
+                    : "text-muted-foreground"
                 }`}
-                onClick={() => setActiveCategory(cat.id)}
+                onClick={() => scrollToSection(cat.id)}
               >
                 {cat.name}
               </Button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Content ── */}
+      <div className="max-w-lg mx-auto w-full px-4 pb-32 pt-5 space-y-8">
+        {/* Hero */}
+        {!search && (
+          <div className="text-center space-y-1">
+            <h2 className="text-2xl font-extrabold">{RESTAURANT_NAME}</h2>
+            <p className="text-sm text-muted-foreground">
+              Explora nuestro menú y haz tu pedido
+            </p>
+          </div>
         )}
 
-        {/* Products */}
-        <div className="space-y-3">
-          {filteredProducts.map((p) => {
-            const cartItem = items.find((i) => i.product.id === p.id);
-            return (
-              <Card key={p.id} className="flex items-center gap-3 p-3">
-                {p.image_url && (
-                  <div className="relative h-16 w-16 bg-muted rounded-lg overflow-hidden shrink-0">
-                    <Image src={p.image_url} alt={p.name} fill className="object-cover" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm">{p.name}</p>
-                    {p.featured && (
-                      <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0">
-                        ⭐
-                      </Badge>
-                    )}
-                  </div>
-                  {p.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
-                  )}
-                  <p className="text-orange-600 font-bold text-sm mt-0.5">
-                    ${p.price.toFixed(2)}
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  {cartItem ? (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(p.id, cartItem.quantity - 1)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-6 text-center text-sm font-bold">
-                        {cartItem.quantity}
-                      </span>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-7 w-7"
-                        onClick={() => addItem(p)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="bg-orange-500 hover:bg-orange-600 text-white"
-                      onClick={() => addItem(p)}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Agregar
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-          {filteredProducts.length === 0 && (
-            <p className="text-center text-muted-foreground py-8">
-              No se encontraron productos
+        {/* ── Search results ── */}
+        {searchResults && (
+          <section>
+            <p className="text-sm text-muted-foreground mb-3">
+              {searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""} para &quot;{search}&quot;
             </p>
-          )}
-        </div>
+            {searchResults.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No se encontraron productos
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {searchResults.map((p) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
+                    cartItem={items.find((i) => i.product.id === p.id)}
+                    onAdd={() => addItem(p)}
+                    onInc={() => addItem(p)}
+                    onDec={() => {
+                      const ci = items.find((i) => i.product.id === p.id);
+                      if (ci) updateQuantity(p.id, ci.quantity - 1);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Full menu by category ── */}
+        {!searchResults && (
+          <>
+            {/* Featured */}
+            {featured.length > 0 && (
+              <section>
+                <SectionTitle>⭐ Destacados</SectionTitle>
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x no-scrollbar">
+                  {featured.map((p) => (
+                    <Card
+                      key={p.id}
+                      className="min-w-[148px] max-w-[148px] overflow-hidden shrink-0 snap-start hover:shadow-lg transition-shadow"
+                    >
+                      {p.image_url && (
+                        <div className="relative h-24 overflow-hidden bg-muted">
+                          <Image
+                            src={p.image_url}
+                            alt={p.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="p-2.5 space-y-1.5">
+                        <p className="font-semibold text-xs leading-snug line-clamp-2">
+                          {p.name}
+                        </p>
+                        <p className="text-orange-600 font-bold text-xs">
+                          ${p.price.toFixed(2)}
+                        </p>
+                        <Button
+                          size="sm"
+                          className="w-full h-6 text-[10px] bg-orange-500 hover:bg-orange-600 text-white"
+                          onClick={() => addItem(p)}
+                        >
+                          <Plus className="h-2.5 w-2.5 mr-1" />
+                          Agregar
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Category sections */}
+            {productsByCategory.map(({ cat, items: catItems }) => (
+              <section
+                key={cat.id}
+                id={`section-${cat.id}`}
+                className="scroll-mt-[160px]"
+              >
+                <SectionTitle>{cat.name}</SectionTitle>
+                {cat.description && (
+                  <p className="text-sm text-muted-foreground mb-3 -mt-1">
+                    {cat.description}
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {catItems.map((p) => (
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      cartItem={items.find((i) => i.product.id === p.id)}
+                      onAdd={() => addItem(p)}
+                      onInc={() => addItem(p)}
+                      onDec={() => {
+                        const ci = items.find((i) => i.product.id === p.id);
+                        if (ci) updateQuantity(p.id, ci.quantity - 1);
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
+        )}
       </div>
 
-      {/* Floating cart button */}
+      {/* ── Floating cart ── */}
       {cartCount > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
           <Button
             size="lg"
-            className="bg-orange-500 hover:bg-orange-600 text-white shadow-2xl rounded-full px-8 gap-3"
+            className="bg-orange-500 hover:bg-orange-600 text-white shadow-2xl rounded-full px-8 gap-3 h-12"
             onClick={() => setCartOpen(true)}
           >
             <ShoppingCart className="h-5 w-5" />
@@ -348,14 +394,14 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t py-4 mt-auto">
+      {/* ── Footer ── */}
+      <footer className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t py-3 mt-auto">
         <p className="text-center text-xs text-muted-foreground">
-          🍽️ {RESTAURANT_NAME} — Haz tu pedido y sigue su estado en tiempo real
+          🍽️ {RESTAURANT_NAME} — Realiza tu pedido y sigue su estado en tiempo real
         </p>
       </footer>
 
-      {/* Cart Sheet */}
+      {/* ── Cart Sheet ── */}
       <Sheet open={cartOpen} onOpenChange={setCartOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl max-h-[92vh] flex flex-col">
           <SheetHeader>
@@ -376,29 +422,17 @@ export default function MenuPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7"
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                    >
+                    <Button size="icon" variant="outline" className="h-7 w-7"
+                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>
                       <Minus className="h-3 w-3" />
                     </Button>
                     <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7"
-                      onClick={() => addItem(item.product)}
-                    >
+                    <Button size="icon" variant="outline" className="h-7 w-7"
+                      onClick={() => addItem(item.product)}>
                       <Plus className="h-3 w-3" />
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => removeItem(item.product.id)}
-                    >
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+                      onClick={() => removeItem(item.product.id)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -415,7 +449,7 @@ export default function MenuPage() {
                   placeholder="Ej: María"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-9"
                 />
               </div>
               <div>
@@ -424,7 +458,7 @@ export default function MenuPage() {
                   placeholder="Ej: 3"
                   value={customerTable}
                   onChange={(e) => setCustomerTable(e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-9"
                 />
               </div>
             </div>
@@ -432,6 +466,7 @@ export default function MenuPage() {
               placeholder="Notas especiales..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              className="h-9"
             />
             <Separator />
             <div className="flex justify-between items-center font-bold text-lg">
@@ -463,5 +498,84 @@ export default function MenuPage() {
         </SheetContent>
       </Sheet>
     </main>
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-lg font-extrabold mb-3 flex items-center gap-2">
+      {children}
+    </h3>
+  );
+}
+
+function ProductCard({
+  product: p,
+  cartItem,
+  onAdd,
+  onInc,
+  onDec,
+}: {
+  product: Product;
+  cartItem: { quantity: number } | undefined;
+  onAdd: () => void;
+  onInc: () => void;
+  onDec: () => void;
+}) {
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      {p.image_url && (
+        <div className="relative h-28 bg-muted overflow-hidden shrink-0">
+          <Image src={p.image_url} alt={p.name} fill className="object-cover" />
+          {p.featured && (
+            <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0">
+              ⭐
+            </Badge>
+          )}
+        </div>
+      )}
+      <div className="p-2.5 flex flex-col flex-1 gap-1.5">
+        <div className="flex-1">
+          <div className="flex items-start gap-1">
+            <p className="font-semibold text-sm leading-snug flex-1">{p.name}</p>
+            {!p.image_url && p.featured && (
+              <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1 py-0 shrink-0">
+                ⭐
+              </Badge>
+            )}
+          </div>
+          {p.description && (
+            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+              {p.description}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-between pt-0.5">
+          <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
+          {cartItem ? (
+            <div className="flex items-center gap-1">
+              <Button size="icon" variant="outline" className="h-6 w-6" onClick={onDec}>
+                <Minus className="h-3 w-3" />
+              </Button>
+              <span className="w-5 text-center text-xs font-bold">{cartItem.quantity}</span>
+              <Button size="icon" variant="outline" className="h-6 w-6" onClick={onInc}>
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white px-2.5"
+              onClick={onAdd}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Agregar
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
