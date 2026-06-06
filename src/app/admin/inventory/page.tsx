@@ -45,6 +45,7 @@ export default function InventoryPage() {
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Ingredient | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   const supabase = createClient();
 
@@ -58,6 +59,10 @@ export default function InventoryPage() {
           .order("created_at", { ascending: false })
           .limit(100),
       ]);
+      // 42P01 = table does not exist (tables not created yet)
+      const tablesMissing =
+        ingRes.error?.code === "42P01" || movRes.error?.code === "42P01";
+      if (tablesMissing) { setNeedsSetup(true); setLoading(false); return; }
       if (ingRes.error) throw ingRes.error;
       if (movRes.error) throw movRes.error;
       setIngredients(ingRes.data ?? []);
@@ -160,6 +165,21 @@ export default function InventoryPage() {
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+    </div>
+  );
+
+  if (needsSetup) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
+      <Package className="h-12 w-12 text-emerald-500" />
+      <h2 className="text-xl font-bold">Configura las tablas de inventario</h2>
+      <p className="text-muted-foreground text-center max-w-md">
+        Las tablas de inventario aún no existen en Supabase. Ve a{" "}
+        <strong>SQL Editor → New Query</strong>, pega el contenido de{" "}
+        <code className="bg-muted px-1 rounded">supabase-inventory.sql</code> y ejecútalo.
+      </p>
+      <Button onClick={() => { setNeedsSetup(false); setLoading(true); loadData(); }}>
+        Ya ejecuté el SQL — Reintentar
+      </Button>
     </div>
   );
 

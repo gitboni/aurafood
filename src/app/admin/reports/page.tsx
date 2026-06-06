@@ -76,7 +76,7 @@ export default function ReportsPage() {
     const start = new Date(d); start.setHours(0, 0, 0, 0);
     const end   = new Date(d); end.setHours(23, 59, 59, 999);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("stock_movements")
       .select("*, ingredient:ingredients(name, unit)")
       .eq("type", "sale")
@@ -84,7 +84,8 @@ export default function ReportsPage() {
       .lte("created_at", end.toISOString())
       .order("created_at", { ascending: false });
 
-    setMovements((data ?? []) as StockMovement[]);
+    // Fail silently if inventory tables don't exist yet
+    if (!error) setMovements((data ?? []) as StockMovement[]);
   }
 
   useEffect(() => { loadOrders(date); loadMovements(date); }, [date]);

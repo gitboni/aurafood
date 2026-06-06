@@ -113,6 +113,7 @@ export default function AdminMenuPage() {
       if (prodRes.error) throw prodRes.error;
       if (catRes.data) setCategories(catRes.data);
       if (prodRes.data) setProducts(prodRes.data);
+      // ingredients table may not exist yet — fail silently
       if (ingRes.data) setIngredients(ingRes.data);
     } catch {
       setError(true);
