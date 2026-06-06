@@ -48,8 +48,10 @@ export default function ReportsPage() {
     if (reset) { setLoading(true); setError(false); setPage(0); }
     else setLoadingMore(true);
 
-    const startISO = `${d}T00:00:00`;
-    const endISO = `${d}T23:59:59`;
+    const d1 = new Date(`${d}T00:00:00`);
+    const d2 = new Date(`${d}T23:59:59.999`);
+    const startISO = d1.toISOString();
+    const endISO = d2.toISOString();
     const currentPage = reset ? 0 : page + 1;
     const from = currentPage * PAGE_SIZE;
     const to   = from + PAGE_SIZE - 1;
@@ -82,12 +84,14 @@ export default function ReportsPage() {
   }
 
   async function loadMovements(d: string) {
+    const d1 = new Date(`${d}T00:00:00`).toISOString();
+    const d2 = new Date(`${d}T23:59:59.999`).toISOString();
     const { data, error } = await supabase
       .from("stock_movements")
       .select("*, ingredient:ingredients(name, unit)")
       .eq("type", "sale")
-      .gte("created_at", `${d}T00:00:00`)
-      .lte("created_at", `${d}T23:59:59`)
+      .gte("created_at", d1)
+      .lte("created_at", d2)
       .order("created_at", { ascending: false });
 
     if (!error && data) setMovements(data);

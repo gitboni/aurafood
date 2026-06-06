@@ -486,8 +486,8 @@ export default function POSPage() {
           </div>
 
           {/* Right: cart */}
-          <div className="w-96 bg-white border-l flex flex-col">
-            <div className="p-4 border-b">
+          <div className="w-96 bg-white border-l flex flex-col overflow-hidden">
+            <div className="p-4 border-b shrink-0">
               <h2 className="font-bold text-lg">Orden Actual</h2>
               <p className="text-sm text-muted-foreground">{orderCount} items</p>
             </div>
@@ -514,18 +514,18 @@ export default function POSPage() {
                         <Button
                           size="icon"
                           variant="outline"
-                          className="h-7 w-7"
+                          className="h-7 w-7 shrink-0"
                           onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
-                        <span className="w-6 text-center text-sm font-bold">
+                        <span className="w-6 text-center text-sm font-bold shrink-0">
                           {item.quantity}
                         </span>
                         <Button
                           size="icon"
                           variant="outline"
-                          className="h-7 w-7"
+                          className="h-7 w-7 shrink-0"
                           onClick={() => addItem(item.product)}
                         >
                           <Plus className="h-3 w-3" />
@@ -533,7 +533,7 @@ export default function POSPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 text-destructive"
+                          className="h-7 w-7 text-destructive shrink-0"
                           onClick={() => updateQuantity(item.product.id, 0)}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -545,7 +545,7 @@ export default function POSPage() {
               )}
             </ScrollArea>
 
-            <div className="p-4 border-t space-y-3">
+            <div className="p-4 border-t space-y-3 shrink-0 bg-white z-10">
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   placeholder="Cliente"
