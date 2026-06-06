@@ -3,16 +3,29 @@
 import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Order, OrderItem } from "@/lib/types";
-import { ChefHat, Clock, CheckCircle2, Home, RefreshCw, Volume2, VolumeX, LogOut } from "lucide-react";
+import {
+  ChefHat,
+  Clock,
+  CheckCircle2,
+  Home,
+  RefreshCw,
+  Volume2,
+  VolumeX,
+  LogOut,
+  Loader2,
+  XCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 
 function playNotificationSound() {
   try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const ctx = new (window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -36,9 +49,19 @@ function playNotificationSound() {
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const prevCountRef = useRef(0);
+  // Ref so the realtime callback always reads the latest value without re-subscribing
+  const soundEnabledRef = useRef(true);
   const supabase = createClient();
+
+  function toggleSound() {
+    const next = !soundEnabled;
+    soundEnabledRef.current = next;
+    setSoundEnabled(next);
+  }
 
   async function loadOrders() {
     const today = new Date();
@@ -52,13 +75,14 @@ export default function KitchenPage() {
       .order("created_at", { ascending: true });
 
     if (data) {
-      if (data.length > prevCountRef.current && prevCountRef.current > 0 && soundEnabled) {
+      if (data.length > prevCountRef.current && prevCountRef.current > 0 && soundEnabledRef.current) {
         playNotificationSound();
         toast.info("🔔 ¡Nuevo pedido!");
       }
       prevCountRef.current = data.length;
       setOrders(data);
     }
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -66,14 +90,14 @@ export default function KitchenPage() {
 
     const channel = supabase
       .channel("kitchen-orders")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => loadOrders()
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () =>
+        loadOrders()
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function updateStatus(orderId: string, newStatus: string) {
@@ -85,10 +109,21 @@ export default function KitchenPage() {
     if (error) {
       toast.error("Error al actualizar");
     } else {
-      const labels: Record<string, string> = { preparing: "Preparando", ready: "Listo", delivered: "Entregado" };
+      const labels: Record<string, string> = {
+        preparing: "Preparando",
+        ready: "Listo",
+        delivered: "Entregado",
+        cancelled: "Cancelado",
+      };
       toast.success(`Orden → ${labels[newStatus] || newStatus}`);
       loadOrders();
     }
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    await updateStatus(cancelTarget, "cancelled");
+    setCancelTarget(null);
   }
 
   function timeSince(dateStr: string) {
@@ -110,10 +145,15 @@ export default function KitchenPage() {
             <Home className="h-5 w-5" />
           </Button>
         </Link>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-gray-700" onClick={async () => {
-          await supabase.auth.signOut();
-          window.location.href = "/login";
-        }}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-white hover:bg-gray-700"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = "/login";
+          }}
+        >
           <LogOut className="h-5 w-5" />
         </Button>
         <ChefHat className="h-6 w-6 text-green-400" />
@@ -127,80 +167,155 @@ export default function KitchenPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setSoundEnabled(!soundEnabled)}
+          onClick={toggleSound}
           className="border-gray-600 text-white hover:bg-gray-700"
         >
           {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
         </Button>
-        <Button variant="outline" size="sm" onClick={loadOrders} className="border-gray-600 text-white hover:bg-gray-700">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadOrders}
+          className="border-gray-600 text-white hover:bg-gray-700"
+        >
           <RefreshCw className="h-4 w-4 mr-1" /> Actualizar
         </Button>
       </header>
 
-      <div className="grid grid-cols-3 gap-4 p-4 h-[calc(100vh-73px)]">
-        <div className="space-y-3">
-          <h2 className="text-lg font-bold text-yellow-400 flex items-center gap-2">
-            <Clock className="h-5 w-5" /> Pendientes ({pending.length})
-          </h2>
-          {pending.map((order) => (
-            <OrderCard key={order.id} order={order} color="border-yellow-500" timeSince={timeSince}
-              actions={
-                <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => updateStatus(order.id, "preparing")}>
-                  Empezar a Preparar
-                </Button>
-              }
-            />
-          ))}
+      {loading ? (
+        <div className="flex items-center justify-center h-[calc(100vh-73px)]">
+          <Loader2 className="h-8 w-8 animate-spin text-green-400" />
         </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-4 p-4 h-[calc(100vh-73px)]">
+          <div className="space-y-3 overflow-y-auto">
+            <h2 className="text-lg font-bold text-yellow-400 flex items-center gap-2 sticky top-0 bg-gray-900 py-1">
+              <Clock className="h-5 w-5" /> Pendientes ({pending.length})
+            </h2>
+            {pending.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                color="border-yellow-500"
+                timeSince={timeSince}
+                onCancel={() => setCancelTarget(order.id)}
+                actions={
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={() => updateStatus(order.id, "preparing")}
+                  >
+                    Empezar a Preparar
+                  </Button>
+                }
+              />
+            ))}
+          </div>
 
-        <div className="space-y-3">
-          <h2 className="text-lg font-bold text-blue-400 flex items-center gap-2">
-            <RefreshCw className="h-5 w-5" /> Preparando ({preparing.length})
-          </h2>
-          {preparing.map((order) => (
-            <OrderCard key={order.id} order={order} color="border-blue-500" timeSince={timeSince}
-              actions={
-                <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => updateStatus(order.id, "ready")}>
-                  ¡Listo!
-                </Button>
-              }
-            />
-          ))}
-        </div>
+          <div className="space-y-3 overflow-y-auto">
+            <h2 className="text-lg font-bold text-blue-400 flex items-center gap-2 sticky top-0 bg-gray-900 py-1">
+              <RefreshCw className="h-5 w-5" /> Preparando ({preparing.length})
+            </h2>
+            {preparing.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                color="border-blue-500"
+                timeSince={timeSince}
+                onCancel={() => setCancelTarget(order.id)}
+                actions={
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => updateStatus(order.id, "ready")}
+                  >
+                    ¡Listo!
+                  </Button>
+                }
+              />
+            ))}
+          </div>
 
-        <div className="space-y-3">
-          <h2 className="text-lg font-bold text-green-400 flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5" /> Listos ({ready.length})
-          </h2>
-          {ready.map((order) => (
-            <OrderCard key={order.id} order={order} color="border-green-500" timeSince={timeSince}
-              actions={
-                <Button className="w-full bg-gray-600 hover:bg-gray-700" onClick={() => updateStatus(order.id, "delivered")}>
-                  Entregado
-                </Button>
-              }
-            />
-          ))}
+          <div className="space-y-3 overflow-y-auto">
+            <h2 className="text-lg font-bold text-green-400 flex items-center gap-2 sticky top-0 bg-gray-900 py-1">
+              <CheckCircle2 className="h-5 w-5" /> Listos ({ready.length})
+            </h2>
+            {ready.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                color="border-green-500"
+                timeSince={timeSince}
+                onCancel={() => setCancelTarget(order.id)}
+                actions={
+                  <Button
+                    className="w-full bg-gray-600 hover:bg-gray-700"
+                    onClick={() => updateStatus(order.id, "delivered")}
+                  >
+                    Entregado
+                  </Button>
+                }
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancelar orden"
+        description="¿Estás seguro de que quieres cancelar esta orden? Esta acción no se puede deshacer."
+        confirmLabel="Sí, cancelar"
+        destructive
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelTarget(null)}
+      />
     </div>
   );
 }
 
-function OrderCard({ order, color, timeSince, actions }: {
-  order: Order; color: string; timeSince: (d: string) => string; actions: React.ReactNode;
+function OrderCard({
+  order,
+  color,
+  timeSince,
+  onCancel,
+  actions,
+}: {
+  order: Order;
+  color: string;
+  timeSince: (d: string) => string;
+  onCancel: () => void;
+  actions: React.ReactNode;
 }) {
   return (
     <Card className={`bg-gray-800 border-l-4 ${color} text-white`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-bold">#{order.order_number}</CardTitle>
-          <Badge variant="outline" className="text-gray-300 border-gray-600">{timeSince(order.created_at)}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-gray-300 border-gray-600">
+              {timeSince(order.created_at)}
+            </Badge>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-900/30"
+              onClick={onCancel}
+              title="Cancelar orden"
+            >
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex gap-2 text-sm text-gray-400">
           {order.customer_name && <span>{order.customer_name}</span>}
           {order.customer_table && <span>Mesa {order.customer_table}</span>}
-          <Badge variant="outline" className={`text-xs ${order.source === "qr" ? "border-purple-500 text-purple-400" : "border-orange-500 text-orange-400"}`}>
+          <Badge
+            variant="outline"
+            className={`text-xs ${
+              order.source === "qr"
+                ? "border-purple-500 text-purple-400"
+                : "border-orange-500 text-orange-400"
+            }`}
+          >
             {order.source === "qr" ? "QR" : "POS"}
           </Badge>
         </div>
@@ -208,14 +323,23 @@ function OrderCard({ order, color, timeSince, actions }: {
       <CardContent className="space-y-2">
         {order.order_items?.map((item: OrderItem) => (
           <div key={item.id} className="flex justify-between text-sm">
-            <span><span className="font-bold text-orange-400">{item.quantity}x</span> {item.product_name}</span>
-            {item.notes && <span className="text-xs text-yellow-400 italic">({item.notes})</span>}
+            <span>
+              <span className="font-bold text-orange-400">{item.quantity}x</span>{" "}
+              {item.product_name}
+            </span>
+            {item.notes && (
+              <span className="text-xs text-yellow-400 italic">({item.notes})</span>
+            )}
           </div>
         ))}
         {order.notes && (
-          <p className="text-xs text-yellow-300 bg-yellow-900/30 p-2 rounded mt-2">📝 {order.notes}</p>
+          <p className="text-xs text-yellow-300 bg-yellow-900/30 p-2 rounded mt-2">
+            📝 {order.notes}
+          </p>
         )}
-        <div className="pt-2">{actions}</div>
+        <div className="pt-2 space-y-2">
+          {actions}
+        </div>
       </CardContent>
     </Card>
   );

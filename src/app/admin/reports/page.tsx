@@ -11,6 +11,9 @@ import {
   TrendingUp,
   Clock,
   LogOut,
+  Loader2,
+  AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,25 +29,59 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const PAGE_SIZE = 50;
+
 export default function ReportsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [total, setTotal] = useState(0);
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [page, setPage] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const supabase = createClient();
 
-  async function loadOrders(d: string) {
+  async function loadOrders(d: string, reset = true) {
+    if (reset) {
+      setLoading(true);
+      setError(false);
+      setPage(0);
+    } else {
+      setLoadingMore(true);
+    }
+
     const start = new Date(d);
     start.setHours(0, 0, 0, 0);
     const end = new Date(d);
     end.setHours(23, 59, 59, 999);
+    const currentPage = reset ? 0 : page + 1;
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
-    const { data } = await supabase
-      .from("orders")
-      .select("*, order_items(*)")
-      .gte("created_at", start.toISOString())
-      .lte("created_at", end.toISOString())
-      .order("created_at", { ascending: false });
+    try {
+      const { data, count, error: queryError } = await supabase
+        .from("orders")
+        .select("*, order_items(*)", { count: "exact" })
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString())
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
-    if (data) setOrders(data);
+      if (queryError) throw queryError;
+
+      if (reset) {
+        setOrders(data ?? []);
+      } else {
+        setOrders((prev) => [...prev, ...(data ?? [])]);
+        setPage(currentPage);
+      }
+      setTotal(count ?? 0);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }
 
   useEffect(() => {
@@ -84,6 +121,8 @@ export default function ReportsPage() {
     cancelled: "Cancelado",
   };
 
+  const hasMore = orders.length < total;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
@@ -101,155 +140,197 @@ export default function ReportsPage() {
           onChange={(e) => setDate(e.target.value)}
           className="w-auto"
         />
-        <Button variant="ghost" size="icon" onClick={async () => {
-          const supabase = createClient();
-          await supabase.auth.signOut();
-          window.location.href = '/login';
-        }}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = "/login";
+          }}
+        >
           <LogOut className="h-5 w-5" />
         </Button>
       </header>
 
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
-        {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Ingresos del Día
-              </CardTitle>
-              <DollarSign className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Órdenes Completadas
-              </CardTitle>
-              <ShoppingBag className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{delivered.length}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Ticket Promedio
-              </CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${avgTicket.toFixed(2)}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Órdenes
-              </CardTitle>
-              <Clock className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{orders.length}</div>
-            </CardContent>
-          </Card>
+      {loading ? (
+        <div className="flex items-center justify-center h-[calc(100vh-73px)]">
+          <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
         </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-73px)] gap-4">
+          <AlertCircle className="h-10 w-10 text-destructive" />
+          <p className="font-semibold">No se pudieron cargar los reportes</p>
+          <Button onClick={() => loadOrders(date)}>Reintentar</Button>
+        </div>
+      ) : (
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
+          {/* KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Ingresos del Día
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
+              </CardContent>
+            </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Top Products */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-base">Productos Más Vendidos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {topProducts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sin ventas hoy</p>
-              ) : (
-                <div className="space-y-3">
-                  {topProducts.slice(0, 10).map((p, i) => (
-                    <div key={p.name} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-muted-foreground w-5">
-                          {i + 1}.
-                        </span>
-                        <span className="text-sm">{p.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold">{p.qty}x</span>
-                        <span className="text-xs text-muted-foreground ml-2">
-                          ${p.revenue.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Órdenes Completadas
+                </CardTitle>
+                <ShoppingBag className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{delivered.length}</div>
+              </CardContent>
+            </Card>
 
-          {/* Order History */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-base">Historial de Órdenes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Hora</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Origen</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((o) => (
-                    <TableRow key={o.id}>
-                      <TableCell className="font-bold">{o.order_number}</TableCell>
-                      <TableCell>
-                        {new Date(o.created_at).toLocaleTimeString("es", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </TableCell>
-                      <TableCell>{o.customer_name || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {o.source === "qr" ? "QR" : "POS"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={statusColors[o.status]}>
-                          {statusLabels[o.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        ${Number(o.total).toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {orders.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        No hay órdenes para esta fecha
-                      </TableCell>
-                    </TableRow>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Ticket Promedio
+                </CardTitle>
+                <TrendingUp className="h-4 w-4 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${avgTicket.toFixed(2)}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Órdenes
+                </CardTitle>
+                <Clock className="h-4 w-4 text-purple-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{total}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Top Products */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="text-base">Productos Más Vendidos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topProducts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin ventas hoy</p>
+                ) : (
+                  <div className="space-y-3">
+                    {topProducts.slice(0, 10).map((p, i) => (
+                      <div key={p.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-muted-foreground w-5">
+                            {i + 1}.
+                          </span>
+                          <span className="text-sm">{p.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-bold">{p.qty}x</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            ${p.revenue.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Order History */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Historial de Órdenes
+                  {total > PAGE_SIZE && (
+                    <span className="text-xs font-normal text-muted-foreground ml-2">
+                      (mostrando {orders.length} de {total})
+                    </span>
                   )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Hora</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Origen</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="font-bold">{o.order_number}</TableCell>
+                        <TableCell>
+                          {new Date(o.created_at).toLocaleTimeString("es", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell>{o.customer_name || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {o.source === "qr" ? "QR" : "POS"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={statusColors[o.status]}>
+                            {statusLabels[o.status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          ${Number(o.total).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {orders.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="text-center text-muted-foreground py-8"
+                        >
+                          No hay órdenes para esta fecha
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+                {hasMore && (
+                  <div className="mt-4 flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadOrders(date, false)}
+                      disabled={loadingMore}
+                    >
+                      {loadingMore ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 mr-2" />
+                      )}
+                      Cargar más
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

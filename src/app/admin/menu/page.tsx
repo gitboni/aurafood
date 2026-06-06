@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Category, Product } from "@/lib/types";
 import {
@@ -14,11 +15,13 @@ import {
   EyeOff,
   QrCode,
   LogOut,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +32,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -39,16 +41,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 
 export default function AdminMenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showCatDialog, setShowCatDialog] = useState(false);
   const [showProdDialog, setShowProdDialog] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [editingProd, setEditingProd] = useState<Product | null>(null);
+
+  // Delete confirmation
+  const [deleteCatTarget, setDeleteCatTarget] = useState<Category | null>(null);
+  const [deleteProdTarget, setDeleteProdTarget] = useState<Product | null>(null);
 
   const [catName, setCatName] = useState("");
   const [catDesc, setCatDesc] = useState("");
@@ -59,6 +68,8 @@ export default function AdminMenuPage() {
   const [prodCategory, setProdCategory] = useState("");
   const [prodImage, setProdImage] = useState("");
   const [prodFeatured, setProdFeatured] = useState(false);
+  const [prodTrackStock, setProdTrackStock] = useState(false);
+  const [prodStock, setProdStock] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const supabase = createClient();
@@ -81,12 +92,20 @@ export default function AdminMenuPage() {
   }
 
   async function loadData() {
-    const [catRes, prodRes] = await Promise.all([
-      supabase.from("categories").select("*").order("sort_order"),
-      supabase.from("products").select("*").order("sort_order"),
-    ]);
-    if (catRes.data) setCategories(catRes.data);
-    if (prodRes.data) setProducts(prodRes.data);
+    try {
+      const [catRes, prodRes] = await Promise.all([
+        supabase.from("categories").select("*").order("sort_order"),
+        supabase.from("products").select("*").order("sort_order"),
+      ]);
+      if (catRes.error) throw catRes.error;
+      if (prodRes.error) throw prodRes.error;
+      if (catRes.data) setCategories(catRes.data);
+      if (prodRes.data) setProducts(prodRes.data);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -125,14 +144,15 @@ export default function AdminMenuPage() {
     loadData();
   }
 
-  async function deleteCat(id: string) {
-    const prods = products.filter((p) => p.category_id === id);
+  async function deleteCat(cat: Category) {
+    const prods = products.filter((p) => p.category_id === cat.id);
     if (prods.length > 0) {
       toast.error("Elimina los productos de esta categoría primero");
       return;
     }
-    await supabase.from("categories").delete().eq("id", id);
+    await supabase.from("categories").delete().eq("id", cat.id);
     toast.success("Categoría eliminada");
+    setDeleteCatTarget(null);
     loadData();
   }
 
@@ -151,6 +171,8 @@ export default function AdminMenuPage() {
       setProdCategory(prod.category_id);
       setProdImage(prod.image_url || "");
       setProdFeatured(prod.featured);
+      setProdTrackStock(prod.track_stock);
+      setProdStock(prod.stock?.toString() ?? "");
     } else {
       setEditingProd(null);
       setProdName("");
@@ -159,6 +181,8 @@ export default function AdminMenuPage() {
       setProdCategory(categories[0]?.id || "");
       setProdImage("");
       setProdFeatured(false);
+      setProdTrackStock(false);
+      setProdStock("");
     }
     setShowProdDialog(true);
   }
@@ -172,21 +196,26 @@ export default function AdminMenuPage() {
       category_id: prodCategory,
       image_url: prodImage || null,
       featured: prodFeatured,
+      track_stock: prodTrackStock,
+      stock: prodTrackStock && prodStock ? parseInt(prodStock, 10) : null,
     };
     if (editingProd) {
       await supabase.from("products").update(data).eq("id", editingProd.id);
       toast.success("Producto actualizado");
     } else {
-      await supabase.from("products").insert({ ...data, sort_order: products.length });
+      await supabase
+        .from("products")
+        .insert({ ...data, sort_order: products.length });
       toast.success("Producto creado");
     }
     setShowProdDialog(false);
     loadData();
   }
 
-  async function deleteProd(id: string) {
-    await supabase.from("products").delete().eq("id", id);
+  async function deleteProd(prod: Product) {
+    await supabase.from("products").delete().eq("id", prod.id);
     toast.success("Producto eliminado");
+    setDeleteProdTarget(null);
     loadData();
   }
 
@@ -195,9 +224,28 @@ export default function AdminMenuPage() {
     loadData();
   }
 
-  const menuUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/menu`
-    : "";
+  const menuUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/menu` : "";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <AlertCircle className="h-10 w-10 text-destructive" />
+        <p className="font-semibold">No se pudo cargar el menú</p>
+        <Button onClick={() => { setError(false); setLoading(true); loadData(); }}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -214,11 +262,14 @@ export default function AdminMenuPage() {
         <Button variant="outline" onClick={() => setShowQR(true)}>
           <QrCode className="h-4 w-4 mr-2" /> Código QR
         </Button>
-        <Button variant="ghost" size="icon" onClick={async () => {
-          const supabase = createClient();
-          await supabase.auth.signOut();
-          window.location.href = '/login';
-        }}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = "/login";
+          }}
+        >
           <LogOut className="h-5 w-5" />
         </Button>
       </header>
@@ -234,7 +285,10 @@ export default function AdminMenuPage() {
           <TabsContent value="products" className="space-y-4">
             <div className="flex justify-between items-center">
               <p className="text-muted-foreground">Administra los productos de tu menú</p>
-              <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openProdDialog()}>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600"
+                onClick={() => openProdDialog()}
+              >
                 <Plus className="h-4 w-4 mr-2" /> Agregar Producto
               </Button>
             </div>
@@ -250,25 +304,56 @@ export default function AdminMenuPage() {
                       <Card key={p.id} className={`${!p.available ? "opacity-50" : ""}`}>
                         <CardContent className="flex items-center gap-3 p-4">
                           {p.image_url && (
-                            <div className="h-14 w-14 bg-muted rounded-lg overflow-hidden shrink-0">
-                              <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                            <div className="relative h-14 w-14 bg-muted rounded-lg overflow-hidden shrink-0">
+                              <Image
+                                src={p.image_url}
+                                alt={p.name}
+                                fill
+                                className="object-cover"
+                              />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="font-medium truncate">{p.name}</p>
-                              {p.featured && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                              {p.featured && (
+                                <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                              )}
                             </div>
                             <p className="text-orange-600 font-bold">${p.price.toFixed(2)}</p>
+                            {p.track_stock && (
+                              <p className="text-xs text-muted-foreground">
+                                Stock: {p.stock ?? "—"}
+                              </p>
+                            )}
                           </div>
                           <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleProd(p)}>
-                              {p.available ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => toggleProd(p)}
+                            >
+                              {p.available ? (
+                                <Eye className="h-4 w-4" />
+                              ) : (
+                                <EyeOff className="h-4 w-4" />
+                              )}
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openProdDialog(p)}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => openProdDialog(p)}
+                            >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteProd(p.id)}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => setDeleteProdTarget(p)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -286,7 +371,10 @@ export default function AdminMenuPage() {
           <TabsContent value="categories" className="space-y-4">
             <div className="flex justify-between items-center">
               <p className="text-muted-foreground">Organiza tu menú por categorías</p>
-              <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openCatDialog()}>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600"
+                onClick={() => openCatDialog()}
+              >
                 <Plus className="h-4 w-4 mr-2" /> Agregar Categoría
               </Button>
             </div>
@@ -305,13 +393,32 @@ export default function AdminMenuPage() {
                       </Badge>
                     </div>
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleCat(cat)}>
-                        {cat.active ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => toggleCat(cat)}
+                      >
+                        {cat.active ? (
+                          <Eye className="h-4 w-4" />
+                        ) : (
+                          <EyeOff className="h-4 w-4" />
+                        )}
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openCatDialog(cat)}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => openCatDialog(cat)}
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteCat(cat.id)}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => setDeleteCatTarget(cat)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -332,11 +439,19 @@ export default function AdminMenuPage() {
           <div className="space-y-4">
             <div>
               <Label>Nombre</Label>
-              <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Ej: Hamburguesas" />
+              <Input
+                value={catName}
+                onChange={(e) => setCatName(e.target.value)}
+                placeholder="Ej: Hamburguesas"
+              />
             </div>
             <div>
               <Label>Descripción (opcional)</Label>
-              <Textarea value={catDesc} onChange={(e) => setCatDesc(e.target.value)} placeholder="Descripción de la categoría" />
+              <Textarea
+                value={catDesc}
+                onChange={(e) => setCatDesc(e.target.value)}
+                placeholder="Descripción de la categoría"
+              />
             </div>
             <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveCat}>
               {editingCat ? "Guardar Cambios" : "Crear Categoría"}
@@ -354,26 +469,45 @@ export default function AdminMenuPage() {
           <div className="space-y-4">
             <div>
               <Label>Nombre</Label>
-              <Input value={prodName} onChange={(e) => setProdName(e.target.value)} placeholder="Ej: Hamburguesa Clásica" />
+              <Input
+                value={prodName}
+                onChange={(e) => setProdName(e.target.value)}
+                placeholder="Ej: Hamburguesa Clásica"
+              />
             </div>
             <div>
               <Label>Descripción (opcional)</Label>
-              <Textarea value={prodDesc} onChange={(e) => setProdDesc(e.target.value)} placeholder="Ingredientes o descripción" />
+              <Textarea
+                value={prodDesc}
+                onChange={(e) => setProdDesc(e.target.value)}
+                placeholder="Ingredientes o descripción"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Precio</Label>
-                <Input type="number" step="0.01" value={prodPrice} onChange={(e) => setProdPrice(e.target.value)} placeholder="0.00" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={prodPrice}
+                  onChange={(e) => setProdPrice(e.target.value)}
+                  placeholder="0.00"
+                />
               </div>
               <div>
                 <Label>Categoría</Label>
-                <Select value={prodCategory} onValueChange={(v) => v && setProdCategory(v)}>
+                <Select
+                  value={prodCategory}
+                  onValueChange={(v) => v && setProdCategory(v)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -382,8 +516,8 @@ export default function AdminMenuPage() {
             <div>
               <Label>Imagen del producto</Label>
               {prodImage && (
-                <div className="h-32 bg-muted rounded-lg overflow-hidden mb-2">
-                  <img src={prodImage} alt="Preview" className="w-full h-full object-cover" />
+                <div className="relative h-32 bg-muted rounded-lg overflow-hidden mb-2">
+                  <Image src={prodImage} alt="Preview" fill className="object-cover" />
                 </div>
               )}
               <Input
@@ -392,7 +526,9 @@ export default function AdminMenuPage() {
                 onChange={uploadImage}
                 disabled={uploading}
               />
-              {uploading && <p className="text-xs text-muted-foreground mt-1">Subiendo imagen...</p>}
+              {uploading && (
+                <p className="text-xs text-muted-foreground mt-1">Subiendo imagen...</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -403,6 +539,30 @@ export default function AdminMenuPage() {
                 className="rounded"
               />
               <Label htmlFor="featured">Producto destacado</Label>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="trackStock"
+                  checked={prodTrackStock}
+                  onChange={(e) => setProdTrackStock(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="trackStock">Controlar stock</Label>
+              </div>
+              {prodTrackStock && (
+                <div>
+                  <Label>Cantidad en stock</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={prodStock}
+                    onChange={(e) => setProdStock(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              )}
             </div>
             <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveProd}>
               {editingProd ? "Guardar Cambios" : "Crear Producto"}
@@ -426,6 +586,28 @@ export default function AdminMenuPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm delete product */}
+      <ConfirmDialog
+        open={!!deleteProdTarget}
+        title="Eliminar producto"
+        description={`¿Eliminar "${deleteProdTarget?.name}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => deleteProdTarget && deleteProd(deleteProdTarget)}
+        onCancel={() => setDeleteProdTarget(null)}
+      />
+
+      {/* Confirm delete category */}
+      <ConfirmDialog
+        open={!!deleteCatTarget}
+        title="Eliminar categoría"
+        description={`¿Eliminar "${deleteCatTarget?.name}"? Asegúrate de que no tenga productos asignados.`}
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={() => deleteCatTarget && deleteCat(deleteCatTarget)}
+        onCancel={() => setDeleteCatTarget(null)}
+      />
     </div>
   );
 }
