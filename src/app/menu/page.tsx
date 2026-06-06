@@ -46,7 +46,10 @@ export default function MenuPage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
-  const [customerTable, setCustomerTable] = useState("");
+  const [customerTable, setCustomerTable] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("mesa") ?? "";
+  });
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
 

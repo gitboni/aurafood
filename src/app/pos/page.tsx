@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Category, Product, Order } from "@/lib/types";
@@ -14,26 +14,52 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
+  QrCode,
+  Clock,
+  ChefHat,
+  CheckCircle2,
+  XCircle,
+  ReceiptText,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Receipt, type PaymentMethod } from "@/components/receipt";
+import { BillingModal } from "@/components/billing-modal";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
 
+type Tab = "sell" | "orders";
+
+const QR_STATUS: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  pending: { label: "Pendiente", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  preparing: { label: "Preparando", color: "bg-blue-100 text-blue-800", icon: ChefHat },
+  ready: { label: "Listo", color: "bg-green-100 text-green-800", icon: CheckCircle2 },
+  delivered: { label: "Entregado", color: "bg-gray-100 text-gray-800", icon: CheckCircle2 },
+  cancelled: { label: "Cancelado", color: "bg-red-100 text-red-800", icon: XCircle },
+};
+
+const QR_FILTER_OPTS = [
+  { value: "all", label: "Todas" },
+  { value: "pending", label: "Pendientes" },
+  { value: "preparing", label: "Preparando" },
+  { value: "ready", label: "Listos" },
+  { value: "delivered", label: "Entregados" },
+];
+
 export default function POSPage() {
+  // ── Sell tab state ─────────────────────────────────────────
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [errorProducts, setErrorProducts] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerTable, setCustomerTable] = useState("");
   const [notes, setNotes] = useState("");
@@ -42,9 +68,18 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
 
+  // ── Orders tab state ────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<Tab>("sell");
+  const [qrOrders, setQrOrders] = useState<Order[]>([]);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrFilter, setQrFilter] = useState("all");
+  const [billingOrder, setBillingOrder] = useState<Order | null>(null);
+  const qrChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
   const { items, addItem, updateQuantity, clearCart, total, count } = useCartStore();
   const supabase = createClient();
 
+  // ── Load products ───────────────────────────────────────────
   useEffect(() => {
     async function load() {
       try {
@@ -60,16 +95,57 @@ export default function POSPage() {
         }
         if (prodRes.data) setProducts(prodRes.data);
       } catch {
-        setError(true);
+        setErrorProducts(true);
       } finally {
-        setLoading(false);
+        setLoadingProducts(false);
       }
     }
     load();
   }, []);
 
+  // ── Load QR orders when tab is active ──────────────────────
+  async function loadQROrders() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("source", "qr")
+      .gte("created_at", today.toISOString())
+      .order("created_at", { ascending: false });
+    if (data) setQrOrders(data);
+    setQrLoading(false);
+  }
+
+  useEffect(() => {
+    if (activeTab !== "orders") {
+      if (qrChannelRef.current) {
+        supabase.removeChannel(qrChannelRef.current);
+        qrChannelRef.current = null;
+      }
+      return;
+    }
+    setQrLoading(true);
+    loadQROrders();
+
+    const ch = supabase
+      .channel("pos-qr-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () =>
+        loadQROrders()
+      )
+      .subscribe();
+    qrChannelRef.current = ch;
+
+    return () => {
+      supabase.removeChannel(ch);
+      qrChannelRef.current = null;
+    };
+  }, [activeTab]);
+
+  // ── Sell helpers ────────────────────────────────────────────
   const orderTotal = total();
   const orderCount = count();
+  const paid = parseFloat(amountPaid);
 
   const filtered = products.filter((p) => {
     const matchCategory = !activeCategory || p.category_id === activeCategory;
@@ -96,7 +172,7 @@ export default function POSPage() {
 
       if (orderError) throw orderError;
 
-      const orderLineItems = items.map((i) => ({
+      const lineItems = items.map((i) => ({
         order_id: order.id,
         product_id: i.product.id,
         product_name: i.product.name,
@@ -108,13 +184,12 @@ export default function POSPage() {
 
       const { data: insertedItems, error: itemsError } = await supabase
         .from("order_items")
-        .insert(orderLineItems)
+        .insert(lineItems)
         .select("*");
       if (itemsError) throw itemsError;
 
       const fullOrder: Order = { ...order, order_items: insertedItems };
       setReceiptOrder(fullOrder);
-
       toast.success(`Orden #${order.order_number} creada`);
       clearCart();
       setCustomerName("");
@@ -128,7 +203,16 @@ export default function POSPage() {
     }
   }
 
-  if (loading) {
+  // ── QR orders helpers ───────────────────────────────────────
+  const filteredQR =
+    qrFilter === "all" ? qrOrders : qrOrders.filter((o) => o.status === qrFilter);
+
+  const pendingCount = qrOrders.filter((o) =>
+    ["pending", "ready"].includes(o.status)
+  ).length;
+
+  // ── Loading / error ──────────────────────────────────────────
+  if (loadingProducts) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-100">
         <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
@@ -136,7 +220,7 @@ export default function POSPage() {
     );
   }
 
-  if (error) {
+  if (errorProducts) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-gray-100 gap-4">
         <AlertCircle className="h-10 w-10 text-destructive" />
@@ -147,259 +231,442 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Receipt overlay */}
       {receiptOrder && (
         <Receipt
           order={receiptOrder}
           paymentMethod={paymentMethod}
-          amountPaid={
-            paymentMethod === "cash" && amountPaid
-              ? parseFloat(amountPaid)
-              : undefined
-          }
+          amountPaid={paymentMethod === "cash" && amountPaid ? paid : undefined}
           onClose={() => setReceiptOrder(null)}
         />
       )}
 
-      {/* Left panel — Products */}
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white border-b px-4 py-3 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon">
-              <Home className="h-5 w-5" />
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-          >
-            <LogOut className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-orange-500" />
-            POS — AuraFood
-          </h1>
-          <div className="flex-1" />
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar producto..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </header>
+      {/* Billing modal for QR orders */}
+      {billingOrder && (
+        <BillingModal order={billingOrder} onClose={() => setBillingOrder(null)} />
+      )}
 
-        <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto">
-          {categories.map((cat) => (
-            <Button
-              key={cat.id}
-              variant={activeCategory === cat.id ? "default" : "outline"}
-              size="sm"
-              className={`shrink-0 ${
-                activeCategory === cat.id ? "bg-orange-500 hover:bg-orange-600" : ""
-              }`}
-              onClick={() => setActiveCategory(cat.id)}
-            >
-              {cat.name}
-            </Button>
-          ))}
+      {/* ── Header ── */}
+      <header className="bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0">
+        <Link href="/">
+          <Button variant="ghost" size="icon">
+            <Home className="h-5 w-5" />
+          </Button>
+        </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = "/login";
+          }}
+        >
+          <LogOut className="h-5 w-5" />
+        </Button>
+
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setActiveTab("sell")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              activeTab === "sell"
+                ? "bg-white shadow-sm text-gray-900"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <ShoppingBag className="h-4 w-4" /> Vender
+          </button>
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              activeTab === "orders"
+                ? "bg-white shadow-sm text-gray-900"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <QrCode className="h-4 w-4" /> Órdenes QR
+            {pendingCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
+          </button>
         </div>
 
-        <ScrollArea className="flex-1 p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {filtered.map((p) => {
-              const inCart = items.find((i) => i.product.id === p.id);
-              return (
-                <Card
-                  key={p.id}
-                  className={`p-3 cursor-pointer hover:shadow-md transition-all ${
-                    inCart ? "ring-2 ring-orange-400" : ""
+        {activeTab === "sell" && (
+          <>
+            <h1 className="text-lg font-bold text-gray-800 hidden md:flex items-center gap-1.5">
+              <ShoppingBag className="h-5 w-5 text-orange-500" /> POS — AuraFood
+            </h1>
+            <div className="flex-1" />
+            <div className="relative w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar producto..."
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
+        {activeTab === "orders" && (
+          <>
+            <h1 className="text-lg font-bold text-gray-800">Órdenes del día — QR</h1>
+            <div className="flex-1" />
+            <Button variant="outline" size="sm" onClick={loadQROrders}>
+              Actualizar
+            </Button>
+          </>
+        )}
+      </header>
+
+      {/* ══════════════════════════════════════
+          TAB: VENDER
+      ══════════════════════════════════════ */}
+      {activeTab === "sell" && (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left: products */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Category pills */}
+            <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
+              {categories.map((cat) => (
+                <Button
+                  key={cat.id}
+                  variant={activeCategory === cat.id ? "default" : "outline"}
+                  size="sm"
+                  className={`shrink-0 ${
+                    activeCategory === cat.id ? "bg-orange-500 hover:bg-orange-600" : ""
                   }`}
-                  onClick={() => addItem(p)}
+                  onClick={() => setActiveCategory(cat.id)}
                 >
-                  {p.image_url && (
-                    <div className="relative h-20 bg-muted rounded-md mb-2 overflow-hidden">
-                      <Image src={p.image_url} alt={p.name} fill className="object-cover" />
+                  {cat.name}
+                </Button>
+              ))}
+            </div>
+
+            <ScrollArea className="flex-1 p-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {filtered.map((p) => {
+                  const inCart = items.find((i) => i.product.id === p.id);
+                  return (
+                    <Card
+                      key={p.id}
+                      className={`p-3 cursor-pointer hover:shadow-md transition-all ${
+                        inCart ? "ring-2 ring-orange-400" : ""
+                      }`}
+                      onClick={() => addItem(p)}
+                    >
+                      {p.image_url && (
+                        <div className="relative h-20 bg-muted rounded-md mb-2 overflow-hidden">
+                          <Image
+                            src={p.image_url}
+                            alt={p.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      )}
+                      <p className="font-medium text-sm truncate">{p.name}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-orange-600 font-bold text-sm">
+                          ${p.price.toFixed(2)}
+                        </span>
+                        {inCart && (
+                          <Badge className="bg-orange-500">{inCart.quantity}</Badge>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+              {filtered.length === 0 && (
+                <p className="text-center text-muted-foreground py-12">
+                  No se encontraron productos
+                </p>
+              )}
+            </ScrollArea>
+          </div>
+
+          {/* Right: cart */}
+          <div className="w-96 bg-white border-l flex flex-col">
+            <div className="p-4 border-b">
+              <h2 className="font-bold text-lg">Orden Actual</h2>
+              <p className="text-sm text-muted-foreground">{orderCount} items</p>
+            </div>
+
+            <ScrollArea className="flex-1 p-4">
+              {items.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Agrega productos a la orden
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <div
+                      key={item.product.id}
+                      className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{item.product.name}</p>
+                        <p className="text-sm text-orange-600 font-semibold">
+                          ${(item.product.price * item.quantity).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center text-sm font-bold">
+                          {item.quantity}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-7 w-7"
+                          onClick={() => addItem(item.product)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => updateQuantity(item.product.id, 0)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                  <p className="font-medium text-sm truncate">{p.name}</p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-orange-600 font-bold text-sm">
-                      ${p.price.toFixed(2)}
-                    </span>
-                    {inCart && (
-                      <Badge className="bg-orange-500">{inCart.quantity}</Badge>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+
+            <div className="p-4 border-t space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Cliente"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+                <Input
+                  placeholder="Mesa"
+                  value={customerTable}
+                  onChange={(e) => setCustomerTable(e.target.value)}
+                />
+              </div>
+              <Textarea
+                placeholder="Notas..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+              />
+
+              {/* Payment method */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Forma de Pago
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { value: "cash", label: "Efectivo", emoji: "💵" },
+                      { value: "card", label: "Tarjeta", emoji: "💳" },
+                      { value: "transfer", label: "Transfer.", emoji: "📱" },
+                    ] as { value: PaymentMethod; label: string; emoji: string }[]
+                  ).map((pm) => (
+                    <button
+                      key={pm.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(pm.value)}
+                      className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
+                        paymentMethod === pm.value
+                          ? "bg-orange-50 border-orange-400 text-orange-700"
+                          : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                      }`}
+                    >
+                      <span className="text-base">{pm.emoji}</span>
+                      {pm.label}
+                    </button>
+                  ))}
+                </div>
+                {paymentMethod === "cash" && (
+                  <div className="space-y-1">
+                    <Input
+                      type="number"
+                      placeholder="Monto recibido"
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(e.target.value)}
+                      step="0.01"
+                      min={0}
+                    />
+                    {paid > 0 && paid >= orderTotal && (
+                      <div className="flex justify-between text-sm font-semibold text-green-700 bg-green-50 px-2 py-1 rounded">
+                        <span>Cambio:</span>
+                        <span>${(paid - orderTotal).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {paid > 0 && paid < orderTotal && (
+                      <p className="text-xs text-destructive">
+                        Falta: ${(orderTotal - paid).toFixed(2)}
+                      </p>
                     )}
                   </div>
-                </Card>
+                )}
+              </div>
+
+              <Separator />
+              <div className="flex justify-between items-center text-xl font-bold">
+                <span>Total</span>
+                <span className="text-orange-600">${orderTotal.toFixed(2)}</span>
+              </div>
+              <Button
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                size="lg"
+                disabled={items.length === 0 || sending}
+                onClick={submitOrder}
+              >
+                {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {sending ? "Creando..." : `Crear Orden — $${orderTotal.toFixed(2)}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          TAB: ÓRDENES QR
+      ══════════════════════════════════════ */}
+      {activeTab === "orders" && (
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Filter bar */}
+          <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
+            {QR_FILTER_OPTS.map((f) => {
+              const count =
+                f.value === "all"
+                  ? qrOrders.length
+                  : qrOrders.filter((o) => o.status === f.value).length;
+              return (
+                <Button
+                  key={f.value}
+                  variant={qrFilter === f.value ? "default" : "outline"}
+                  size="sm"
+                  className={`shrink-0 ${
+                    qrFilter === f.value ? "bg-orange-500 hover:bg-orange-600" : ""
+                  }`}
+                  onClick={() => setQrFilter(f.value)}
+                >
+                  {f.label}
+                  <span className="ml-1.5 text-xs opacity-70">({count})</span>
+                </Button>
               );
             })}
           </div>
-          {filtered.length === 0 && (
-            <p className="text-center text-muted-foreground py-12">
-              No se encontraron productos
-            </p>
-          )}
-        </ScrollArea>
-      </div>
 
-      {/* Right panel — Cart */}
-      <div className="w-96 bg-white border-l flex flex-col">
-        <div className="p-4 border-b">
-          <h2 className="font-bold text-lg">Orden Actual</h2>
-          <p className="text-sm text-muted-foreground">{orderCount} items</p>
-        </div>
-
-        <ScrollArea className="flex-1 p-4">
-          {items.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Agrega productos a la orden
-            </p>
+          {qrLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+            </div>
+          ) : filteredQR.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+              <QrCode className="h-12 w-12 opacity-30" />
+              <p className="font-medium">No hay órdenes QR{qrFilter !== "all" ? " con este estado" : " hoy"}</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {items.map((item) => (
-                <div
-                  key={item.product.id}
-                  className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.product.name}</p>
-                    <p className="text-sm text-orange-600 font-semibold">
-                      ${(item.product.price * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7"
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7"
-                      onClick={() => addItem(item.product)}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => updateQuantity(item.product.id, 0)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+            <ScrollArea className="flex-1">
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredQR.map((order) => {
+                  const st = QR_STATUS[order.status] ?? QR_STATUS.pending;
+                  const StatusIcon = st.icon;
+                  return (
+                    <Card key={order.id} className="overflow-hidden">
+                      <CardContent className="p-0">
+                        {/* Card header */}
+                        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl font-extrabold">
+                              #{order.order_number}
+                            </span>
+                            {order.customer_table && (
+                              <span className="text-sm font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                                Mesa {order.customer_table}
+                              </span>
+                            )}
+                          </div>
+                          <Badge className={`${st.color} flex items-center gap-1 border-0`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {st.label}
+                          </Badge>
+                        </div>
 
-        <div className="p-4 border-t space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Cliente"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-            />
-            <Input
-              placeholder="Mesa"
-              value={customerTable}
-              onChange={(e) => setCustomerTable(e.target.value)}
-            />
-          </div>
-          <Textarea
-            placeholder="Notas..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-          />
+                        {/* Customer + time */}
+                        <div className="flex items-center gap-2 px-4 pb-2 text-xs text-muted-foreground">
+                          {order.customer_name && <span>{order.customer_name}</span>}
+                          <span>
+                            {new Date(order.created_at).toLocaleTimeString("es", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
 
-          {/* Payment method */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Forma de Pago
-            </p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(
-                [
-                  { value: "cash", label: "Efectivo", emoji: "💵" },
-                  { value: "card", label: "Tarjeta", emoji: "💳" },
-                  { value: "transfer", label: "Transfer.", emoji: "📱" },
-                ] as { value: PaymentMethod; label: string; emoji: string }[]
-              ).map((pm) => (
-                <button
-                  key={pm.value}
-                  type="button"
-                  onClick={() => setPaymentMethod(pm.value)}
-                  className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
-                    paymentMethod === pm.value
-                      ? "bg-orange-50 border-orange-400 text-orange-700"
-                      : "border-gray-200 text-muted-foreground hover:border-gray-300"
-                  }`}
-                >
-                  <span className="text-base">{pm.emoji}</span>
-                  {pm.label}
-                </button>
-              ))}
-            </div>
-            {paymentMethod === "cash" && (
-              <div className="space-y-1">
-                <Input
-                  type="number"
-                  placeholder="Monto recibido"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
-                  step="0.01"
-                  min={0}
-                />
-                {parseFloat(amountPaid) > 0 &&
-                  parseFloat(amountPaid) >= orderTotal && (
-                    <div className="flex justify-between text-sm font-semibold text-green-700 bg-green-50 px-2 py-1 rounded">
-                      <span>Cambio:</span>
-                      <span>
-                        ${(parseFloat(amountPaid) - orderTotal).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                {parseFloat(amountPaid) > 0 &&
-                  parseFloat(amountPaid) < orderTotal && (
-                    <p className="text-xs text-destructive">
-                      Falta: ${(orderTotal - parseFloat(amountPaid)).toFixed(2)}
-                    </p>
-                  )}
+                        <Separator />
+
+                        {/* Items */}
+                        <div className="px-4 py-3 space-y-1">
+                          {order.order_items?.map((item) => (
+                            <div key={item.id} className="flex justify-between text-sm">
+                              <span>
+                                <span className="font-semibold text-orange-600">
+                                  {item.quantity}x
+                                </span>{" "}
+                                {item.product_name}
+                              </span>
+                              <span className="tabular-nums">
+                                ${Number(item.subtotal).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                          {order.notes && (
+                            <p className="text-xs text-yellow-700 bg-yellow-50 p-1.5 rounded mt-1 italic">
+                              📝 {order.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        <Separator />
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <span className="font-bold text-lg text-orange-600">
+                            ${Number(order.total).toFixed(2)}
+                          </span>
+                          <Button
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                            onClick={() => setBillingOrder(order)}
+                          >
+                            <ReceiptText className="h-4 w-4" />
+                            Factura
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-            )}
-          </div>
-
-          <Separator />
-          <div className="flex justify-between items-center text-xl font-bold">
-            <span>Total</span>
-            <span className="text-orange-600">${orderTotal.toFixed(2)}</span>
-          </div>
-          <Button
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-            size="lg"
-            disabled={items.length === 0 || sending}
-            onClick={submitOrder}
-          >
-            {sending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {sending ? "Creando..." : `Crear Orden — $${orderTotal.toFixed(2)}`}
-          </Button>
+            </ScrollArea>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

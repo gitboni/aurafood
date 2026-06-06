@@ -17,6 +17,9 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
+  Printer,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -52,6 +55,8 @@ export default function AdminMenuPage() {
   const [showCatDialog, setShowCatDialog] = useState(false);
   const [showProdDialog, setShowProdDialog] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [tableCount, setTableCount] = useState(10);
+  const [showTableQRs, setShowTableQRs] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [editingProd, setEditingProd] = useState<Product | null>(null);
 
@@ -573,16 +578,90 @@ export default function AdminMenuPage() {
 
       {/* QR Dialog */}
       <Dialog open={showQR} onOpenChange={setShowQR}>
-        <DialogContent className="text-center">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Código QR del Menú</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            <div className="bg-white p-4 rounded-xl shadow-lg">
-              <QRCodeSVG value={menuUrl} size={250} level="H" />
+
+          {/* ── QR General ── */}
+          <div className="flex flex-col items-center gap-3 py-2">
+            <div className="bg-white p-4 rounded-xl shadow border">
+              <QRCodeSVG value={menuUrl} size={200} level="H" />
             </div>
-            <p className="text-sm text-muted-foreground break-all">{menuUrl}</p>
-            <p className="text-sm">Imprime este QR y colócalo en las mesas</p>
+            <p className="text-xs text-muted-foreground break-all text-center">{menuUrl}</p>
+            <p className="text-sm text-center text-muted-foreground">
+              QR general del menú — el cliente escribe su mesa manualmente
+            </p>
+          </div>
+
+          <Separator />
+
+          {/* ── QR por Mesa ── */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              className="flex items-center justify-between w-full text-left"
+              onClick={() => setShowTableQRs(!showTableQRs)}
+            >
+              <div>
+                <p className="font-semibold text-sm">QR individuales por mesa</p>
+                <p className="text-xs text-muted-foreground">
+                  El número de mesa se rellena automáticamente al escanear
+                </p>
+              </div>
+              {showTableQRs ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+
+            {showTableQRs && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Label className="shrink-0">Número de mesas:</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={tableCount}
+                    onChange={(e) =>
+                      setTableCount(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))
+                    }
+                    className="w-20"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.print()}
+                    className="ml-auto"
+                  >
+                    <Printer className="h-4 w-4 mr-1.5" />
+                    Imprimir todas
+                  </Button>
+                </div>
+
+                {/* Grid of table QRs */}
+                <div
+                  className="grid gap-3 max-h-72 overflow-y-auto pr-1 print:max-h-none print:overflow-visible print:grid-cols-4"
+                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))" }}
+                >
+                  {Array.from({ length: tableCount }, (_, i) => i + 1).map((n) => (
+                    <div
+                      key={n}
+                      className="flex flex-col items-center gap-1.5 p-2.5 border rounded-xl bg-white hover:shadow-sm transition-shadow"
+                    >
+                      <QRCodeSVG value={`${menuUrl}?mesa=${n}`} size={84} level="M" />
+                      <p className="text-xs font-bold text-center">Mesa {n}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center">
+                  Imprime, recorta y coloca cada QR en su mesa correspondiente
+                </p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
