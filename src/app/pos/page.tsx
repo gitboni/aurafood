@@ -69,6 +69,9 @@ export default function POSPage() {
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [tipAmount, setTipAmount] = useState("");
+  const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
 
   // ── Orders tab state ────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>("sell");
@@ -108,6 +111,21 @@ export default function POSPage() {
       }
     }
     load();
+  }, []);
+
+  // ── Load current open shift ─────────────────────────────────
+  useEffect(() => {
+    async function loadShift() {
+      const { data } = await supabase
+        .from("shifts")
+        .select("id")
+        .eq("status", "open")
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setCurrentShiftId(data?.id ?? null);
+    }
+    loadShift();
   }, []);
 
   // ── Load QR orders when tab is active ──────────────────────
@@ -150,8 +168,12 @@ export default function POSPage() {
   }, [activeTab]);
 
   // ── Sell helpers ────────────────────────────────────────────
-  const orderTotal = total();
+  const subtotal = total();
   const orderCount = count();
+  const discPct = Math.min(100, Math.max(0, parseFloat(discountPercent) || 0));
+  const discountAmount = +(subtotal * (discPct / 100)).toFixed(2);
+  const tip = Math.max(0, parseFloat(tipAmount) || 0);
+  const orderTotal = +(subtotal - discountAmount + tip).toFixed(2);
   const paid = parseFloat(amountPaid);
 
   const filtered = products.filter((p) => {
@@ -170,7 +192,13 @@ export default function POSPage() {
           customer_name: customerName || null,
           customer_table: customerTable || null,
           status: "pending",
+          subtotal,
+          discount_percent: discPct,
+          discount_amount: discountAmount,
+          tip,
           total: orderTotal,
+          payment_method: paymentMethod,
+          shift_id: currentShiftId,
           notes: notes || null,
           source: "pos",
         })
@@ -225,6 +253,8 @@ export default function POSPage() {
       setCustomerTable("");
       setNotes("");
       setAmountPaid("");
+      setDiscountPercent("");
+      setTipAmount("");
     } catch {
       toast.error("Error al crear la orden");
     } finally {
@@ -618,11 +648,64 @@ export default function POSPage() {
                 )}
               </div>
 
-              <Separator />
-              <div className="flex justify-between items-center text-xl font-bold">
-                <span>Total</span>
-                <span className="text-orange-600">${orderTotal.toFixed(2)}</span>
+              {/* Discount + tip */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Descuento %
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    min={0}
+                    max={100}
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Propina $
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    min={0}
+                    step="0.01"
+                    value={tipAmount}
+                    onChange={(e) => setTipAmount(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
               </div>
+
+              <Separator />
+
+              {/* Breakdown */}
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>${subtotal.toFixed(2)}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Descuento ({discPct}%)</span>
+                    <span>−${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {tip > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Propina</span>
+                    <span>+${tip.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-xl font-bold pt-1">
+                  <span>Total</span>
+                  <span className="text-orange-600">${orderTotal.toFixed(2)}</span>
+                </div>
+              </div>
+
               <Button
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white"
                 size="lg"

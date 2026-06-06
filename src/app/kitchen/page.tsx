@@ -19,7 +19,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ConfirmDialog } from "@/components/confirm-dialog";
+import { CancelDialog } from "@/components/cancel-dialog";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -122,9 +122,17 @@ export default function KitchenPage() {
     }
   }
 
-  async function confirmCancel() {
+  async function confirmCancel(reason: string) {
     if (!cancelTarget) return;
-    await updateStatus(cancelTarget, "cancelled");
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "cancelled", cancel_reason: reason || "Sin motivo" })
+      .eq("id", cancelTarget);
+    if (error) toast.error("Error al cancelar");
+    else {
+      toast.success("Orden cancelada");
+      loadOrders();
+    }
     setCancelTarget(null);
   }
 
@@ -263,15 +271,12 @@ export default function KitchenPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={!!cancelTarget}
-        title="Cancelar orden"
-        description="¿Estás seguro de que quieres cancelar esta orden? Esta acción no se puede deshacer."
-        confirmLabel="Sí, cancelar"
-        destructive
-        onConfirm={confirmCancel}
-        onCancel={() => setCancelTarget(null)}
-      />
+      {cancelTarget && (
+        <CancelDialog
+          onConfirm={confirmCancel}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
     </div>
   );
 }

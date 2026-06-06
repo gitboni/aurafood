@@ -63,6 +63,10 @@ export function Receipt({
   const taxAmount = SHOW_TAX ? total - total / (1 + TAX_RATE) : 0;
   const subtotalEx = SHOW_TAX ? total - taxAmount : total;
   const change = paymentMethod === "cash" && amountPaid != null ? amountPaid - total : null;
+  const discountAmt = Number(order.discount_amount) || 0;
+  const discountPct = Number(order.discount_percent) || 0;
+  const tipAmt = Number(order.tip) || 0;
+  const baseSubtotal = Number(order.subtotal) || total;
 
   const d = new Date(order.created_at);
   const dateStr = d.toLocaleDateString("es-MX", {
@@ -183,6 +187,18 @@ export function Receipt({
           </div>
 
           <Line />
+
+          {/* Discount & tip */}
+          {(discountAmt > 0 || tipAmt > 0) && (
+            <div className="space-y-0.5">
+              <Row label="Subtotal:" value={`$${baseSubtotal.toFixed(2)}`} />
+              {discountAmt > 0 && (
+                <Row label={`Descuento (${discountPct}%):`} value={`-$${discountAmt.toFixed(2)}`} />
+              )}
+              {tipAmt > 0 && <Row label="Propina:" value={`$${tipAmt.toFixed(2)}`} />}
+              <Line />
+            </div>
+          )}
 
           {/* Totals */}
           {SHOW_TAX ? (
