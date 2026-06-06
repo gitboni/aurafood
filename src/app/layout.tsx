@@ -9,8 +9,16 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "AuraFood - Sistema POS",
-  description: "Sistema de punto de venta y menú digital para AuraFood",
+  title: "AuraFood | Premium POS & Digital Menu",
+  description: "Sistema avanzado de punto de venta y menú digital interactivo para gestión de restaurantes. AuraFood.",
+  keywords: ["POS", "restaurante", "menú digital", "AuraFood", "punto de venta"],
+  openGraph: {
+    title: "AuraFood | Premium POS",
+    description: "Sistema avanzado de punto de venta y menú digital interactivo.",
+    type: "website",
+    locale: "es_ES",
+    siteName: "AuraFood",
+  },
   manifest: "/manifest.json",
 };
 
