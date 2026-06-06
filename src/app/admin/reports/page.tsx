@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Order, StockMovement } from "@/lib/types";
+import { Order } from "@/lib/types";
 import {
   BarChart3, Home, DollarSign, ShoppingBag, TrendingUp, Clock,
   LogOut, Loader2, AlertCircle, ChevronDown, Package,
@@ -40,7 +40,7 @@ export default function ReportsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Inventory consumption for the date
-  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [movements, setMovements] = useState<{ ingredient_id: string; quantity: number; ingredient?: { name: string; unit: string } }[]>([]);
 
   const supabase = createClient();
 
@@ -95,8 +95,7 @@ export default function ReportsPage() {
       .lte("created_at", end.toISOString())
       .order("created_at", { ascending: false });
 
-    // Fail silently if inventory tables don't exist yet
-    if (!error) setMovements((data ?? []) as StockMovement[]);
+    if (!error && data) setMovements(data);
   }
 
   useEffect(() => { loadOrders(date); loadMovements(date); }, [date]);
@@ -116,10 +115,9 @@ export default function ReportsPage() {
   );
   const topProducts = Object.values(productSales).sort((a, b) => b.qty - a.qty);
 
-  // Aggregate consumption by ingredient
   const consumptionMap: Record<string, { name: string; unit: string; total: number }> = {};
   movements.forEach((m) => {
-    const ing = m.ingredient as unknown as { name: string; unit: string } | undefined;
+    const ing = m.ingredient;
     if (!ing) return;
     const key = m.ingredient_id;
     if (!consumptionMap[key]) consumptionMap[key] = { name: ing.name, unit: ing.unit, total: 0 };
