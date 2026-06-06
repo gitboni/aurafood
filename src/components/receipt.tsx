@@ -12,15 +12,15 @@ export function Receipt({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-sm w-full">
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         {/* Controls (hidden on print) */}
-        <div className="flex justify-between p-4 border-b print:hidden">
-          <Button onClick={() => window.print()} className="bg-orange-500 hover:bg-orange-600">
+        <div className="flex gap-2 p-4 border-b print:hidden">
+          <Button onClick={() => window.print()} className="flex-1 bg-orange-500 hover:bg-orange-600">
             <Printer className="h-4 w-4 mr-2" /> Imprimir
           </Button>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
+          <Button onClick={onClose} variant="outline" className="flex-1">
+            <X className="h-4 w-4 mr-2" /> Cerrar
           </Button>
         </div>
 
