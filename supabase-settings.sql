@@ -16,6 +16,17 @@ CREATE TABLE IF NOT EXISTS public.settings (
   CONSTRAINT settings_single_row CHECK (id = 1)
 );
 
+-- Extra columns (added later — safe to re-run)
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS favicon_url                 text;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS tax_label                   text    DEFAULT 'ITBIS';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS tax_inclusive               boolean DEFAULT true;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS auto_print_kitchen          boolean DEFAULT false;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS enable_online_payment       boolean DEFAULT false;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS enable_qr_tip               boolean DEFAULT false;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS enable_qr_ordering          boolean DEFAULT true;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS loyalty_enabled             boolean DEFAULT false;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS loyalty_points_per_currency decimal(10,2) DEFAULT 1;
+
 -- Seed the single row
 INSERT INTO public.settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 

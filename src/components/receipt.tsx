@@ -69,10 +69,16 @@ export function Receipt({
   const SHOW_TAX = !!settings?.tax_enabled;
   const TAX_RATE = (settings?.tax_rate ?? 18) / 100;
   const TAX_LABEL = settings?.tax_label ?? "ITBIS";
+  const TAX_INCLUSIVE = settings?.tax_inclusive ?? true;
 
   const total = Number(order.total);
-  // order.total always already includes tax by checkout time (POS adds it when tax is exclusive).
-  const taxAmount = SHOW_TAX ? total - total / (1 + TAX_RATE) : 0;
+  // Inclusive: tax is already inside the total → back-calculate.
+  // Exclusive: tax is added on top → total = base × (1 + rate).
+  const taxAmount = SHOW_TAX
+    ? TAX_INCLUSIVE
+      ? total - total / (1 + TAX_RATE)
+      : total - total / (1 + TAX_RATE)
+    : 0;
   const subtotalEx = SHOW_TAX ? total - taxAmount : total;
   const change = paymentMethod === "cash" && amountPaid != null ? amountPaid - total : null;
   const discountAmt = Number(order.discount_amount) || 0;
@@ -245,7 +251,7 @@ export function Receipt({
                 value={`$${subtotalEx.toFixed(2)}`}
               />
               <Row
-                label={`${TAX_LABEL} ${Number((TAX_RATE * 100).toFixed(2))}%:`}
+                label={`${TAX_LABEL} ${Number((TAX_RATE * 100).toFixed(2))}%${TAX_INCLUSIVE ? " (incl.)" : ""}:`}
                 value={`$${taxAmount.toFixed(2)}`}
               />
               <Line />

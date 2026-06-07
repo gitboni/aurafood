@@ -62,6 +62,9 @@ export default function MenuPage() {
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
   const [restaurantName, setRestaurantName] = useState(RESTAURANT_NAME);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [qrOrdering, setQrOrdering] = useState(true);
+  const [qrTip, setQrTip] = useState(false);
+  const [onlinePayment, setOnlinePayment] = useState(ENABLE_PAYMENTS);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -87,10 +90,14 @@ export default function MenuPage() {
     }
     load();
     loadModifiers();
-    supabase.from("settings").select("restaurant_name, logo_url").eq("id", 1).maybeSingle()
+    supabase.from("settings").select("*").eq("id", 1).maybeSingle()
       .then(({ data }) => {
-        if (data?.restaurant_name) setRestaurantName(data.restaurant_name);
-        if (data?.logo_url) setLogoUrl(data.logo_url);
+        if (!data) return;
+        if (data.restaurant_name) setRestaurantName(data.restaurant_name);
+        if (data.logo_url) setLogoUrl(data.logo_url);
+        setQrOrdering(data.enable_qr_ordering ?? true);
+        setQrTip(data.enable_qr_tip ?? false);
+        setOnlinePayment(data.enable_online_payment ?? ENABLE_PAYMENTS);
       });
   }, []);
 
@@ -263,21 +270,23 @@ export default function MenuPage() {
           </h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button
-              variant="outline"
-              size="sm"
-              className="relative gap-1.5"
-              onClick={() => setCartOpen(true)}
-              disabled={cartCount === 0}
-            >
-              <ShoppingCart className="h-4 w-4" />
-              <span className="hidden sm:inline">Carrito</span>
-              {cartCount > 0 && (
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-orange-500 text-[10px] text-white">
-                  {cartCount}
-                </Badge>
-              )}
-            </Button>
+            {qrOrdering && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative gap-1.5"
+                onClick={() => setCartOpen(true)}
+                disabled={cartCount === 0}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden sm:inline">Carrito</span>
+                {cartCount > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-orange-500 text-[10px] text-white">
+                    {cartCount}
+                  </Badge>
+                )}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -354,6 +363,7 @@ export default function MenuPage() {
                   <ProductCard
                     key={p.id}
                     product={p}
+                    readOnly={!qrOrdering}
                     hasModifiers={!!modGroups[p.id]?.length}
                     cartItem={items.find((i) => i.product.id === p.id)}
                     onAdd={() => handleAdd(p)}
@@ -432,6 +442,7 @@ export default function MenuPage() {
                     <ProductCard
                       key={p.id}
                       product={p}
+                      readOnly={!qrOrdering}
                       hasModifiers={!!modGroups[p.id]?.length}
                       cartItem={items.find((i) => i.product.id === p.id)}
                       onAdd={() => handleAdd(p)}
@@ -450,7 +461,7 @@ export default function MenuPage() {
       </div>
 
       {/* ── Floating cart ── */}
-      {cartCount > 0 && (
+      {qrOrdering && cartCount > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
           <Button
             size="lg"
@@ -559,25 +570,27 @@ export default function MenuPage() {
             />
 
             {/* Suggested tip */}
-            <div>
-              <Label className="text-xs">¿Agregar propina?</Label>
-              <div className="grid grid-cols-4 gap-1.5 mt-1">
-                {[0, 10, 15, 20].map((pct) => (
-                  <button
-                    key={pct}
-                    type="button"
-                    onClick={() => setTipPct(pct)}
-                    className={`py-2 rounded-lg border text-sm font-medium transition-all ${
-                      tipPct === pct
-                        ? "bg-orange-50 border-orange-400 text-orange-700"
-                        : "border-gray-200 text-muted-foreground hover:border-gray-300"
-                    }`}
-                  >
-                    {pct === 0 ? "No" : `${pct}%`}
-                  </button>
-                ))}
+            {qrTip && (
+              <div>
+                <Label className="text-xs">¿Agregar propina?</Label>
+                <div className="grid grid-cols-4 gap-1.5 mt-1">
+                  {[0, 10, 15, 20].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setTipPct(pct)}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-all ${
+                        tipPct === pct
+                          ? "bg-orange-50 border-orange-400 text-orange-700"
+                          : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                      }`}
+                    >
+                      {pct === 0 ? "No" : `${pct}%`}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <Separator />
             <div className="space-y-1 text-sm">
@@ -605,7 +618,7 @@ export default function MenuPage() {
               {placing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {placing ? "Confirmando..." : "Confirmar Pedido"}
             </Button>
-            {ENABLE_PAYMENTS && (
+            {onlinePayment && (
               <Button
                 variant="outline"
                 className="w-full"
@@ -650,6 +663,7 @@ function ProductCard({
   product: p,
   cartItem,
   hasModifiers,
+  readOnly,
   onAdd,
   onInc,
   onDec,
@@ -657,6 +671,7 @@ function ProductCard({
   product: Product;
   cartItem: { quantity: number } | undefined;
   hasModifiers?: boolean;
+  readOnly?: boolean;
   onAdd: () => void;
   onInc: () => void;
   onDec: () => void;
@@ -728,7 +743,7 @@ function ProductCard({
         
         <div className="flex items-center justify-between pt-1">
           <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
-          {cartItem && !hasModifiers ? (
+          {readOnly ? null : cartItem && !hasModifiers ? (
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
               <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-background shadow-sm" onClick={onDec}>
                 <Minus className="h-3 w-3" />

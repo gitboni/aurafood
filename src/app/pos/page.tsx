@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Receipt, type PaymentMethod } from "@/components/receipt";
+import { buildKitchenTicket, autoPrintEscPos } from "@/lib/escpos";
 import { BillingModal } from "@/components/billing-modal";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { ModifierPicker } from "@/components/modifier-picker";
@@ -69,7 +70,7 @@ export default function POSPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerTable, setCustomerTable] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [customerLookup, setCustomerLookup] = useState<{ name: string; total_orders: number; total_spent: number } | null>(null);
+  const [customerLookup, setCustomerLookup] = useState<{ name: string; total_orders: number; total_spent: number; loyalty_points: number } | null>(null);
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
@@ -83,6 +84,8 @@ export default function POSPage() {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSync, setPendingSync] = useState(0);
   const [taxCfg, setTaxCfg] = useState({ enabled: false, rate: 0, inclusive: true });
+  const [autoPrintKitchen, setAutoPrintKitchen] = useState(false);
+  const [loyaltyCfg, setLoyaltyCfg] = useState({ enabled: false, pointsPerCurrency: 1 });
   const [orderType, setOrderType] = useState<"dine_in" | "takeout" | "delivery">("dine_in");
 
   // ── Orders tab state ────────────────────────────────────────
@@ -189,14 +192,21 @@ export default function POSPage() {
     async function loadTaxCfg() {
       const { data } = await supabase
         .from("settings")
-        .select("tax_enabled, tax_rate, tax_inclusive")
+        .select("tax_enabled, tax_rate, tax_inclusive, auto_print_kitchen, loyalty_enabled, loyalty_points_per_currency")
         .eq("id", 1)
         .maybeSingle();
-      if (data) setTaxCfg({
-        enabled: !!data.tax_enabled,
-        rate: Number(data.tax_rate) || 0,
-        inclusive: data.tax_inclusive ?? true,
-      });
+      if (data) {
+        setTaxCfg({
+          enabled: !!data.tax_enabled,
+          rate: Number(data.tax_rate) || 0,
+          inclusive: data.tax_inclusive ?? true,
+        });
+        setAutoPrintKitchen(!!data.auto_print_kitchen);
+        setLoyaltyCfg({
+          enabled: !!data.loyalty_enabled,
+          pointsPerCurrency: Number(data.loyalty_points_per_currency) || 1,
+        });
+      }
     }
     loadTaxCfg();
   }, []);
@@ -332,7 +342,7 @@ export default function POSPage() {
     if (clean.length < 7) { setCustomerLookup(null); setCustomerId(null); return; }
     const { data } = await supabase
       .from("customers")
-      .select("id, name, total_orders, total_spent")
+      .select("id, name, total_orders, total_spent, loyalty_points")
       .eq("phone", clean)
       .maybeSingle();
     if (data) {
@@ -341,6 +351,7 @@ export default function POSPage() {
         name: data.name ?? "",
         total_orders: data.total_orders,
         total_spent: Number(data.total_spent),
+        loyalty_points: Number(data.loyalty_points) || 0,
       });
       if (data.name && !customerName) setCustomerName(data.name);
     } else {
@@ -360,9 +371,22 @@ export default function POSPage() {
       const { data } = await supabase
         .from("customers")
         .upsert({ phone: cleanPhone, name: customerName || null }, { onConflict: "phone" })
-        .select("id")
+        .select("id, loyalty_points")
         .single();
-      if (data?.id) cId = data.id;
+      if (data?.id) {
+        cId = data.id;
+        // Accrue loyalty points
+        if (loyaltyCfg.enabled) {
+          const earned = Math.round(orderTotal * loyaltyCfg.pointsPerCurrency);
+          if (earned > 0) {
+            await supabase
+              .from("customers")
+              .update({ loyalty_points: (Number(data.loyalty_points) || 0) + earned })
+              .eq("id", data.id);
+            toast.success(`🎁 +${earned} puntos para ${customerName || "el cliente"}`);
+          }
+        }
+      }
     }
 
     const locationId = typeof window !== "undefined"
@@ -450,6 +474,14 @@ export default function POSPage() {
       const fullOrder: Order = { ...order, order_items: insertedItems };
       setReceiptOrder(fullOrder);
       toast.success(`Orden #${order.order_number} creada`);
+
+      // Auto-print kitchen comanda if enabled
+      if (autoPrintKitchen) {
+        try {
+          const printed = await autoPrintEscPos(buildKitchenTicket(fullOrder));
+          if (!printed) toast.info("Comanda lista — empareja la impresora en Ajustes");
+        } catch { /* ignore print errors */ }
+      }
 
       // Deduct inventory stock and check for low-stock alerts
       fetch("/api/inventory/consume", {
@@ -883,7 +915,8 @@ export default function POSPage() {
                     🌟 {customerLookup.name || "Cliente frecuente"}
                   </span>
                   <span className="text-indigo-600 tabular-nums">
-                    {customerLookup.total_orders} órdenes · ${customerLookup.total_spent.toFixed(0)}
+                    {customerLookup.total_orders} órdenes
+                    {loyaltyCfg.enabled && ` · ${customerLookup.loyalty_points} pts`}
                   </span>
                 </div>
               )}

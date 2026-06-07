@@ -119,6 +119,7 @@ export type Customer = {
   name: string | null;
   total_orders: number;
   total_spent: number;
+  loyalty_points: number;
   last_visit: string | null;
   created_at: string;
 };

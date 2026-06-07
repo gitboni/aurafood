@@ -117,6 +117,7 @@ export default function CustomersPage() {
                   <TableHead>Teléfono</TableHead>
                   <TableHead className="text-right">Órdenes</TableHead>
                   <TableHead className="text-right">Gastado</TableHead>
+                  <TableHead className="text-right">Puntos</TableHead>
                   <TableHead>Última visita</TableHead>
                 </TableRow>
               </TableHeader>
@@ -142,6 +143,11 @@ export default function CustomersPage() {
                       <Badge variant="outline">{c.total_orders}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold">${Number(c.total_spent).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {Number(c.loyalty_points) > 0 ? (
+                        <Badge className="bg-amber-100 text-amber-800 border-0">{Number(c.loyalty_points)} pts</Badge>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {c.last_visit ? new Date(c.last_visit).toLocaleDateString("es-MX") : "—"}
                     </TableCell>
@@ -149,7 +155,7 @@ export default function CustomersPage() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       {search ? "Sin resultados" : "Aún no hay clientes registrados"}
                     </TableCell>
                   </TableRow>

@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS public.customers (
 
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON public.customers (phone);
 
+-- Loyalty points balance (added later — safe to re-run)
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS loyalty_points decimal(10,2) DEFAULT 0;
+
 -- Link customers to orders
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_id uuid REFERENCES public.customers(id);
 
