@@ -255,14 +255,27 @@ export default function MenuPage() {
     );
   }
 
+  // First product image for the hero blur backdrop
+  const heroImg = products.find(p => p.featured && p.image_url)?.image_url
+    ?? products.find(p => p.image_url)?.image_url
+    ?? null;
+
   return (
-    <main className="flex-1 flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <main className="flex-1 flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 min-h-screen relative overflow-hidden">
+      {/* Hero blur backdrop */}
+      {heroImg && (
+        <div
+          className="hero-blur-bg"
+          style={{ backgroundImage: `url(${heroImg})` }}
+          aria-hidden="true"
+        />
+      )}
       {/* ── Sticky header ── */}
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-white/40 dark:border-white/5">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-extrabold tracking-tight flex items-center gap-2">
+          <h1 className="font-display text-xl font-semibold tracking-tight flex items-center gap-2">
             {logoUrl ? (
-              <Image src={logoUrl} alt={restaurantName} width={28} height={28} className="rounded-md object-cover h-7 w-7" />
+              <Image src={logoUrl} alt={restaurantName} width={32} height={32} className="rounded-lg object-cover h-8 w-8 ring-1 ring-black/5" />
             ) : (
               <span>🍽️</span>
             )}
@@ -403,10 +416,10 @@ export default function MenuPage() {
                         </div>
                       )}
                       <div className="p-2.5 space-y-1.5">
-                        <p className="font-semibold text-xs leading-snug line-clamp-2">
+                        <p className="font-display font-semibold text-xs leading-snug line-clamp-2">
                           {p.name}
                         </p>
-                        <p className="text-orange-600 font-bold text-xs">
+                        <p className="font-display text-orange-600 font-bold text-sm tabular">
                           ${p.price.toFixed(2)}
                         </p>
                         <Button
@@ -732,7 +745,7 @@ function ProductCard({
       <div className="p-3 flex flex-col flex-1 gap-1.5">
         <div className="flex-1">
           <div className="flex items-start gap-1">
-            <p className="font-semibold text-sm leading-snug flex-1">{p.name}</p>
+            <p className="font-display font-semibold text-sm leading-snug flex-1">{p.name}</p>
           </div>
           {p.description && (
             <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
@@ -740,9 +753,9 @@ function ProductCard({
             </p>
           )}
         </div>
-        
+
         <div className="flex items-center justify-between pt-1">
-          <p className="text-orange-600 font-bold text-sm">${p.price.toFixed(2)}</p>
+          <p className="font-display text-orange-600 font-bold text-base tabular">${p.price.toFixed(2)}</p>
           {readOnly ? null : cartItem && !hasModifiers ? (
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
               <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-background shadow-sm" onClick={onDec}>

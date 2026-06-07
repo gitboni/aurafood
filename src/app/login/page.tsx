@@ -48,20 +48,26 @@ export default function LoginPage() {
       </div>
 
       {/* Login card */}
-      <Card className="relative z-10 w-full max-w-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-white/20 dark:border-slate-700/50 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <Card className="relative z-10 w-full max-w-sm glass-card animate-premium-in">
+        {/* Gold shimmer line at top */}
+        <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
+
         <CardHeader className="text-center">
           {/* Branding */}
           <div className="flex flex-col items-center gap-3">
             <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md p-3 rounded-2xl shadow-sm">
-              <img src="/logo.png" alt="Logo" className="h-12 w-auto object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling!.classList.remove('hidden'); }} />
-              <span className="text-3xl hidden">🍽️</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight">
-              <span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
-                El Buen Comer
-              </span>
-            </h1>
-            <p className="text-sm text-muted-foreground font-medium">
+            <div className="space-y-1">
+              <p className="text-[10px] tracking-[0.4em] uppercase text-gold-gradient font-semibold">— Restaurante —</p>
+              <h1 className="font-display text-3xl font-medium tracking-tight">
+                <span className="bg-gradient-to-br from-orange-500 to-rose-600 bg-clip-text text-transparent">
+                  El Buen Comer
+                </span>
+              </h1>
+            </div>
+            <p className="font-display italic text-sm text-muted-foreground">
               Ingresa a tu cuenta para continuar
             </p>
           </div>
@@ -92,13 +98,13 @@ export default function LoginPage() {
             </div>
             <Button
               type="submit"
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+              className="w-full btn-premium text-white h-11 font-semibold"
               disabled={loading}
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
-                <LogIn className="h-4 w-4 mr-2" />
+                <LogIn className="h-4 w-4 mr-2" strokeWidth={2} />
               )}
               {loading ? "Ingresando..." : "Iniciar Sesión"}
             </Button>

@@ -145,35 +145,40 @@ export default function Home() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="El Buen Comer Logo" className="h-24 w-auto object-contain" />
           </div>
-          <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight">
-            <span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
-              El Buen Comer
-            </span>
-          </h1>
-          <p className="text-muted-foreground text-xl max-w-xl mx-auto font-medium">
+          <div className="space-y-2">
+            <p className="text-xs tracking-[0.4em] uppercase text-gold-gradient font-semibold">— Restaurante —</p>
+            <h1 className="font-display text-6xl md:text-7xl font-medium tracking-tight leading-[0.95]">
+              <span className="bg-gradient-to-br from-orange-500 via-orange-600 to-rose-600 bg-clip-text text-transparent">
+                El Buen Comer
+              </span>
+            </h1>
+          </div>
+          <p className="font-display italic text-muted-foreground text-xl max-w-xl mx-auto font-normal">
             ¡Sabor casero que conquista tu paladar!
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {links.map((link, i) => (
-            <Link 
-              key={link.href} 
+            <Link
+              key={link.href}
               href={link.href}
-              className="group"
-              style={{ animationDelay: `${i * 100}ms` }}
+              className="group animate-premium-in"
+              style={{ animationDelay: `${i * 70}ms` }}
             >
-              <Card className="h-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-white/20 dark:border-white/10 hover:shadow-2xl hover:shadow-orange-500/10 dark:hover:shadow-orange-500/5 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer overflow-hidden relative">
-                {/* Subtle gradient overlay on hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/0 group-hover:from-white/40 group-hover:to-transparent dark:group-hover:from-white/5 transition-colors pointer-events-none" />
-                
+              <Card className="h-full glass-card hover:shadow-2xl hover:shadow-orange-500/10 dark:hover:shadow-orange-500/5 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer overflow-hidden relative">
+                {/* Gold shimmer line on hover (top) */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-300/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                {/* Subtle hover overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/0 to-white/0 group-hover:from-white/30 group-hover:to-transparent dark:group-hover:from-white/[0.03] transition-colors pointer-events-none" />
+
                 <CardHeader className="flex flex-col items-start gap-4 p-6">
-                  <div className={`${link.color} p-3.5 rounded-2xl text-white shadow-md shadow-black/5 group-hover:scale-110 transition-transform duration-300`}>
-                    <link.icon className="h-6 w-6" />
+                  <div className={`${link.color} p-3.5 rounded-2xl text-white shadow-lg shadow-black/10 group-hover:scale-110 group-hover:rotate-[-3deg] transition-transform duration-300`}>
+                    <link.icon className="h-6 w-6" strokeWidth={1.75} />
                   </div>
                   <div className="space-y-1">
-                    <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">{link.title}</CardTitle>
-                    <CardDescription className="text-base">{link.description}</CardDescription>
+                    <CardTitle className="font-display text-xl font-semibold group-hover:text-primary transition-colors">{link.title}</CardTitle>
+                    <CardDescription className="text-sm">{link.description}</CardDescription>
                   </div>
                 </CardHeader>
               </Card>
