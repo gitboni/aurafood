@@ -111,6 +111,20 @@ export default function Home() {
       color: "bg-violet-500",
     },
     {
+      href: "/floor",
+      title: "Salón",
+      description: "Mapa de mesas en vivo",
+      icon: MapPin,
+      color: "bg-violet-600",
+    },
+    {
+      href: "/admin/tables",
+      title: "Mesas",
+      description: "Configurar mapa del salón",
+      icon: MapPin,
+      color: "bg-indigo-500",
+    },
+    {
       href: "/admin/audit",
       title: "Auditoría",
       description: "Bitácora de cambios",

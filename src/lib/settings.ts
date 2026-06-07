@@ -21,6 +21,7 @@ const DEFAULT: Settings = {
   enable_qr_ordering: true,
   loyalty_enabled: false,
   loyalty_points_per_currency: 1,
+  manager_pin: null,
   updated_at: new Date(0).toISOString(),
 };
 

@@ -32,6 +32,7 @@ export default function SettingsPage() {
         address: null, phone: null, rfc: null, tax_enabled: false, tax_rate: 18, tax_label: "ITBIS",
         tax_inclusive: true, auto_print_kitchen: false, enable_online_payment: false,
         enable_qr_tip: false, enable_qr_ordering: true, loyalty_enabled: false, loyalty_points_per_currency: 1,
+        manager_pin: null,
         updated_at: new Date().toISOString(),
       }
     );
@@ -91,6 +92,7 @@ export default function SettingsPage() {
       enable_qr_ordering: settings.enable_qr_ordering,
       loyalty_enabled: settings.loyalty_enabled,
       loyalty_points_per_currency: settings.loyalty_points_per_currency,
+      manager_pin: settings.manager_pin,
       updated_at: new Date().toISOString(),
     });
     setSaving(false);
@@ -294,6 +296,28 @@ export default function SettingsPage() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Seguridad — PIN del Gerente</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              El PIN se pedirá para acciones sensibles: cancelar órdenes, reembolsos y marcar productos como agotados.
+              Déjalo vacío para desactivar.
+            </p>
+            <div>
+              <Label>PIN (4 a 6 dígitos)</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="••••"
+                value={settings.manager_pin ?? ""}
+                onChange={(e) => set("manager_pin", e.target.value.replace(/\D/g, "") || null)}
+                className="mt-1 w-32 text-center text-lg tracking-[0.4em] font-bold"
+              />
+            </div>
           </CardContent>
         </Card>
 

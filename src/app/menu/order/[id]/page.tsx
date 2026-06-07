@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Order } from "@/lib/types";
-import { Clock, ChefHat, CheckCircle2, PackageCheck, Loader2 } from "lucide-react";
+import { Clock, ChefHat, CheckCircle2, PackageCheck, Loader2, Timer } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +56,8 @@ export default function OrderTrackingPage() {
   const params = useParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avgPrepMin, setAvgPrepMin] = useState<number | null>(null);
+  const [tick, setTick] = useState(0);
   const supabase = createClient();
 
   async function loadOrder() {
@@ -69,8 +71,33 @@ export default function OrderTrackingPage() {
     setLoading(false);
   }
 
+  // Average prep time from the last 20 delivered orders
+  async function loadAvgPrep() {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("orders")
+      .select("created_at, updated_at")
+      .eq("status", "delivered")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!data || data.length === 0) { setAvgPrepMin(15); return; } // default 15 min
+    const mins = data
+      .map((o) => (new Date(o.updated_at).getTime() - new Date(o.created_at).getTime()) / 60000)
+      .filter((m) => m > 0 && m < 120);
+    if (mins.length === 0) { setAvgPrepMin(15); return; }
+    setAvgPrepMin(mins.reduce((a, b) => a + b, 0) / mins.length);
+  }
+
   useEffect(() => {
     loadOrder();
+    loadAvgPrep();
+    // Re-render every 30s to update remaining ETA
+    const t = setInterval(() => setTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
 
     const channel = supabase
       .channel(`order-${params.id}`)
@@ -117,6 +144,12 @@ export default function OrderTrackingPage() {
   const status = STATUS_MAP[order.status] || STATUS_MAP.pending;
   const StatusIcon = status.icon;
 
+  // ETA: avg prep − elapsed since order created
+  void tick;
+  const elapsedMin = (Date.now() - new Date(order.created_at).getTime()) / 60000;
+  const remaining = avgPrepMin != null ? Math.max(0, Math.round(avgPrepMin - elapsedMin)) : null;
+  const showEta = (order.status === "pending" || order.status === "preparing") && remaining != null;
+
   return (
     <main className="flex-1 flex flex-col items-center min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 p-6">
       <div className="max-w-md w-full space-y-6">
@@ -138,6 +171,27 @@ export default function OrderTrackingPage() {
             <div className="text-4xl font-bold">#{order.order_number}</div>
           </CardContent>
         </Card>
+
+        {/* ETA */}
+        {showEta && (
+          <Card className="bg-white/70 dark:bg-slate-900/70 backdrop-blur border-orange-200 dark:border-slate-700">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center shrink-0">
+                <Timer className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Tiempo estimado</p>
+                <p className="text-lg font-bold">
+                  {remaining === 0
+                    ? "¡Cualquier momento!"
+                    : remaining! <= 1
+                      ? "Aprox. 1 minuto"
+                      : `Aprox. ${remaining} minutos`}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Progress Steps */}
         <div className="flex justify-between px-4">

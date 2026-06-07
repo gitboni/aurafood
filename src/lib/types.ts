@@ -144,7 +144,21 @@ export type Settings = {
   enable_qr_ordering: boolean;
   loyalty_enabled: boolean;
   loyalty_points_per_currency: number;
+  manager_pin: string | null;
   updated_at: string;
+};
+
+export type FloorTable = {
+  id: string;
+  name: string;
+  zone: string;
+  seats: number;
+  x: number;
+  y: number;
+  shape: "square" | "round" | "rect";
+  active: boolean;
+  sort_order: number;
+  created_at: string;
 };
 
 export type OrderType = "dine_in" | "takeout" | "delivery";

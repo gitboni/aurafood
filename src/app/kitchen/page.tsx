@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CancelDialog } from "@/components/cancel-dialog";
+import { ManagerPinDialog } from "@/components/manager-pin-dialog";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { autoPrintEscPos, buildKitchenTicket, pairPrinter } from "@/lib/escpos";
 import { Printer } from "lucide-react";
@@ -56,6 +57,7 @@ export default function KitchenPage() {
   const [loading, setLoading] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [pinTarget, setPinTarget] = useState<string | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const prevCountRef = useRef(0);
   // Ref so the realtime callback always reads the latest value without re-subscribing
@@ -276,7 +278,7 @@ export default function KitchenPage() {
                 order={order}
                 color="border-yellow-500"
                 timeSince={timeSince}
-                onCancel={() => setCancelTarget(order.id)}
+                onCancel={() => setPinTarget(order.id)}
                 actions={
                   <Button
                     className="w-full bg-blue-600 hover:bg-blue-700 transition-transform hover:scale-105"
@@ -299,7 +301,7 @@ export default function KitchenPage() {
                 order={order}
                 color="border-blue-500"
                 timeSince={timeSince}
-                onCancel={() => setCancelTarget(order.id)}
+                onCancel={() => setPinTarget(order.id)}
                 actions={
                   <Button
                     className="w-full bg-green-600 hover:bg-green-700 transition-transform hover:scale-105"
@@ -322,7 +324,7 @@ export default function KitchenPage() {
                 order={order}
                 color="border-green-500"
                 timeSince={timeSince}
-                onCancel={() => setCancelTarget(order.id)}
+                onCancel={() => setPinTarget(order.id)}
                 actions={
                   <div className="space-y-2">
                     {order.customer_phone && (
@@ -351,6 +353,17 @@ export default function KitchenPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {pinTarget && (
+        <ManagerPinDialog
+          action="cancelar orden"
+          onSuccess={() => {
+            setCancelTarget(pinTarget);
+            setPinTarget(null);
+          }}
+          onClose={() => setPinTarget(null)}
+        />
       )}
 
       {cancelTarget && (

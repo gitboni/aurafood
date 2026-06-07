@@ -34,6 +34,7 @@ import { buildKitchenTicket, autoPrintEscPos } from "@/lib/escpos";
 import { BillingModal } from "@/components/billing-modal";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { ModifierPicker } from "@/components/modifier-picker";
+import { ManagerPinDialog } from "@/components/manager-pin-dialog";
 import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
 import { queueOrder, flushQueue, queuedCount, onQueueChange } from "@/lib/offline-queue";
 import { WifiOff, CloudUpload } from "lucide-react";
@@ -68,7 +69,10 @@ export default function POSPage() {
   const [errorProducts, setErrorProducts] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [customerTable, setCustomerTable] = useState("");
+  const [customerTable, setCustomerTable] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("mesa") ?? "";
+  });
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerLookup, setCustomerLookup] = useState<{ name: string; total_orders: number; total_spent: number; loyalty_points: number } | null>(null);
   const [notes, setNotes] = useState("");
@@ -87,6 +91,7 @@ export default function POSPage() {
   const [autoPrintKitchen, setAutoPrintKitchen] = useState(false);
   const [loyaltyCfg, setLoyaltyCfg] = useState({ enabled: false, pointsPerCurrency: 1 });
   const [orderType, setOrderType] = useState<"dine_in" | "takeout" | "delivery">("dine_in");
+  const [pinTarget86, setPinTarget86] = useState<Product | null>(null);
 
   // ── Orders tab state ────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>("sell");
@@ -609,6 +614,19 @@ export default function POSPage() {
         />
       )}
 
+      {/* Manager PIN before marking a product as out of stock (86) */}
+      {pinTarget86 && (
+        <ManagerPinDialog
+          action={`marcar "${pinTarget86.name}" como agotado`}
+          onSuccess={() => {
+            const p = pinTarget86;
+            setPinTarget86(null);
+            if (p) markUnavailable(p);
+          }}
+          onClose={() => setPinTarget86(null)}
+        />
+      )}
+
       {/* Billing modal for QR orders */}
       {billingOrders.length > 0 && !billingReceipt && (
         <BillingModal
@@ -777,7 +795,7 @@ export default function POSPage() {
                           type="button"
                           title="Marcar agotado (86)"
                           className="absolute top-1.5 left-1.5 z-10 h-6 w-6 rounded-full bg-white/80 hover:bg-red-500 hover:text-white text-gray-600 text-[10px] font-bold flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm"
-                          onClick={(e) => { e.stopPropagation(); markUnavailable(p); }}
+                          onClick={(e) => { e.stopPropagation(); setPinTarget86(p); }}
                         >
                           86
                         </button>
