@@ -743,49 +743,66 @@ export default function POSPage() {
             </div>
 
             <ScrollArea className="flex-1 p-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {filtered.map((p) => {
                   const inCart = items.find((i) => i.product.id === p.id);
                   const hasMods = !!modGroups[p.id]?.length;
+                  const initial = p.name.trim().charAt(0).toUpperCase();
                   return (
                     <Card
                       key={p.id}
-                      className={`p-3 cursor-pointer hover:shadow-md transition-all relative ${
-                        inCart ? "ring-2 ring-orange-400" : ""
+                      className={`group cursor-pointer overflow-hidden transition-all duration-200 relative p-0 hover:shadow-lg hover:-translate-y-0.5 ${
+                        inCart ? "ring-2 ring-orange-500 shadow-md" : ""
                       }`}
                       onClick={() => handleAddProduct(p)}
                     >
-                      {hasMods && (
-                        <span className="absolute top-1 right-1 z-10 text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
-                          opciones
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        title="Marcar agotado (86)"
-                        className="absolute top-1 left-1 z-10 h-5 w-5 rounded-full bg-gray-200/90 hover:bg-red-500 hover:text-white text-gray-500 text-[10px] font-bold flex items-center justify-center transition-colors"
-                        onClick={(e) => { e.stopPropagation(); markUnavailable(p); }}
-                      >
-                        86
-                      </button>
-                      {p.image_url && (
-                        <div className="relative h-20 bg-muted rounded-md mb-2 overflow-hidden">
+                      {/* Square image / fallback */}
+                      <div className="relative aspect-square w-full bg-gradient-to-br from-orange-50 to-amber-100 dark:from-slate-800 dark:to-slate-700 overflow-hidden">
+                        {p.image_url ? (
                           <Image
                             src={p.image_url}
                             alt={p.name}
                             fill
-                            className="object-cover"
+                            sizes="(max-width: 768px) 50vw, (max-width: 1280px) 25vw, 200px"
+                            className="object-cover object-center transition-transform duration-300 group-hover:scale-105"
                           />
-                        </div>
-                      )}
-                      <p className="font-medium text-sm truncate">{p.name}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-orange-600 font-bold text-sm">
-                          ${p.price.toFixed(2)}
-                        </span>
-                        {inCart && (
-                          <Badge className="bg-orange-500">{inCart.quantity}</Badge>
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-orange-400 to-rose-400 text-white">
+                            <span className="text-5xl font-bold opacity-80">{initial}</span>
+                          </div>
                         )}
+
+                        {/* Top-left: 86 (out of stock) */}
+                        <button
+                          type="button"
+                          title="Marcar agotado (86)"
+                          className="absolute top-1.5 left-1.5 z-10 h-6 w-6 rounded-full bg-white/80 hover:bg-red-500 hover:text-white text-gray-600 text-[10px] font-bold flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm"
+                          onClick={(e) => { e.stopPropagation(); markUnavailable(p); }}
+                        >
+                          86
+                        </button>
+
+                        {/* Top-right: modifier indicator */}
+                        {hasMods && (
+                          <span className="absolute top-1.5 right-1.5 z-10 text-[9px] bg-blue-500/90 text-white px-1.5 py-0.5 rounded-full font-medium backdrop-blur-sm shadow-sm">
+                            opciones
+                          </span>
+                        )}
+
+                        {/* Bottom-right: in-cart quantity badge (large, prominent) */}
+                        {inCart && (
+                          <div className="absolute bottom-1.5 right-1.5 z-10 h-7 min-w-7 px-2 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center shadow-lg ring-2 ring-white">
+                            {inCart.quantity}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Name + price */}
+                      <div className="p-2.5">
+                        <p className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5em]">{p.name}</p>
+                        <p className="text-orange-600 font-bold text-base mt-1">
+                          ${p.price.toFixed(2)}
+                        </p>
                       </div>
                     </Card>
                   );
