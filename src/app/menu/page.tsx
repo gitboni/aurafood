@@ -17,6 +17,7 @@ import {
   X,
   Check,
   ZoomIn,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -239,15 +240,43 @@ export default function MenuPage() {
 
   if (loading) {
     return (
-      <main className="flex-1 flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <main className="flex-1 flex flex-col bg-gradient-to-br from-primary/5 to-gold/5 min-h-screen">
+        {/* Header skeleton */}
+        <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border">
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="h-7 w-40 rounded-lg bg-muted animate-pulse" />
+            <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
+          </div>
+          <div className="max-w-lg mx-auto px-4 pb-3">
+            <div className="h-9 w-full rounded-md bg-muted animate-pulse" />
+          </div>
+        </div>
+        {/* Product grid skeleton */}
+        <div className="max-w-lg mx-auto w-full px-4 pt-5">
+          <div className="h-6 w-32 rounded bg-muted animate-pulse mb-4" />
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border overflow-hidden bg-card">
+                <div className="aspect-[4/3] bg-muted animate-pulse" />
+                <div className="p-3 space-y-2">
+                  <div className="h-4 w-3/4 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-1/2 rounded bg-muted animate-pulse" />
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="h-5 w-12 rounded bg-muted animate-pulse" />
+                    <div className="h-7 w-16 rounded-md bg-muted animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="flex-1 flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 gap-4">
+      <main className="flex-1 flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-primary/5 to-gold/5 gap-4">
         <AlertCircle className="h-10 w-10 text-destructive" />
         <p className="font-semibold">No se pudo cargar el menú</p>
         <Button onClick={() => window.location.reload()}>Reintentar</Button>
@@ -261,7 +290,7 @@ export default function MenuPage() {
     ?? null;
 
   return (
-    <main className="flex-1 flex flex-col bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 min-h-screen relative overflow-hidden">
+    <main className="flex-1 flex flex-col bg-gradient-to-br from-primary/5 to-gold/5 min-h-screen relative overflow-hidden">
       {/* Hero blur backdrop */}
       {heroImg && (
         <div
@@ -271,7 +300,7 @@ export default function MenuPage() {
         />
       )}
       {/* ── Sticky header ── */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-white/40 dark:border-white/5">
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="font-display text-xl font-semibold tracking-tight flex items-center gap-2">
             {logoUrl ? (
@@ -294,7 +323,7 @@ export default function MenuPage() {
                 <ShoppingCart className="h-4 w-4" />
                 <span className="hidden sm:inline">Carrito</span>
                 {cartCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-orange-500 text-[10px] text-white">
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-primary text-[10px] text-primary-foreground">
                     {cartCount}
                   </Badge>
                 )}
@@ -309,7 +338,7 @@ export default function MenuPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar en el menú..."
-              className="pl-9 h-9 bg-white/80 dark:bg-gray-800/80"
+              className="pl-9 h-9 bg-card/80"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -327,7 +356,7 @@ export default function MenuPage() {
 
       {/* ── Category nav (hidden when searching) ── */}
       {!search && categories.length > 0 && (
-        <div className="sticky top-[105px] z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b">
+        <div className="sticky top-[105px] z-30 bg-background/80 backdrop-blur-sm border-b">
           <div className="max-w-lg mx-auto px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar">
             {categories.map((cat) => (
               <Button
@@ -336,7 +365,7 @@ export default function MenuPage() {
                 size="sm"
                 className={`shrink-0 rounded-full text-xs h-7 ${
                   activeSection === cat.id
-                    ? "bg-orange-500 hover:bg-orange-600 text-white"
+                    ? "bg-primary hover:bg-primary/90 text-white"
                     : "text-muted-foreground"
                 }`}
                 onClick={() => scrollToSection(cat.id)}
@@ -353,7 +382,7 @@ export default function MenuPage() {
         {/* Hero */}
         {!search && (
           <div className="text-center space-y-1">
-            <h2 className="text-3xl font-extrabold"><span className="bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">{restaurantName}</span></h2>
+            <h2 className="font-display text-4xl font-medium tracking-tight text-primary">{restaurantName}</h2>
             <p className="text-sm text-muted-foreground">
               Explora nuestro menú y haz tu pedido
             </p>
@@ -398,7 +427,7 @@ export default function MenuPage() {
             {/* Featured */}
             {featured.length > 0 && (
               <section>
-                <SectionTitle>⭐ Destacados</SectionTitle>
+                <SectionTitle><Star className="h-[18px] w-[18px] text-gold" fill="currentColor" /> Destacados</SectionTitle>
                 <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x no-scrollbar">
                   {featured.map((p) => (
                     <Card
@@ -419,12 +448,12 @@ export default function MenuPage() {
                         <p className="font-display font-semibold text-xs leading-snug line-clamp-2">
                           {p.name}
                         </p>
-                        <p className="font-display text-orange-600 font-bold text-sm tabular">
+                        <p className="font-display text-primary font-bold text-sm tabular">
                           ${p.price.toFixed(2)}
                         </p>
                         <Button
                           size="sm"
-                          className="w-full h-6 text-[10px] bg-orange-500 hover:bg-orange-600 text-white"
+                          className="w-full h-6 text-[10px] bg-primary hover:bg-primary/90 text-white"
                           onClick={() => addItem(p)}
                         >
                           <Plus className="h-2.5 w-2.5 mr-1" />
@@ -478,19 +507,19 @@ export default function MenuPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
           <Button
             size="lg"
-            className="bg-orange-500 hover:bg-orange-600 text-white shadow-2xl shadow-orange-500/25 rounded-full px-8 gap-3 h-12"
+            className="bg-primary hover:bg-primary/90 text-white shadow-2xl shadow-primary/25 rounded-full px-8 gap-3 h-12"
             onClick={() => setCartOpen(true)}
           >
             <ShoppingCart className="h-5 w-5" />
             <span className="font-bold">{cartCount} items</span>
-            <Separator orientation="vertical" className="h-4 bg-orange-300" />
+            <Separator orientation="vertical" className="h-4 bg-primary-foreground/30" />
             <span className="font-bold">${cartTotal.toFixed(2)}</span>
           </Button>
         </div>
       )}
 
       {/* ── Footer ── */}
-      <footer className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t py-3 mt-auto">
+      <footer className="bg-background/80 backdrop-blur-md border-t py-3 mt-auto">
         <p className="text-center text-xs text-muted-foreground">
           🍽️ {restaurantName} — Realiza tu pedido y sigue su estado en tiempo real
         </p>
@@ -519,7 +548,7 @@ export default function MenuPage() {
                         {item.modifiers!.map((m) => m.modifier_name).join(", ")}
                       </p>
                     )}
-                    <p className="text-sm text-orange-600 font-semibold">
+                    <p className="text-sm text-primary font-semibold">
                       ${(lineUnitPrice(item) * item.quantity).toFixed(2)}
                     </p>
                   </div>
@@ -594,8 +623,8 @@ export default function MenuPage() {
                       onClick={() => setTipPct(pct)}
                       className={`py-2 rounded-lg border text-sm font-medium transition-all ${
                         tipPct === pct
-                          ? "bg-orange-50 border-orange-400 text-orange-700"
-                          : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "border-border text-muted-foreground hover:border-foreground/30"
                       }`}
                     >
                       {pct === 0 ? "No" : `${pct}%`}
@@ -619,11 +648,11 @@ export default function MenuPage() {
               )}
               <div className="flex justify-between items-center font-bold text-lg pt-1">
                 <span>Total</span>
-                <span className="text-orange-600">${cartTotal.toFixed(2)}</span>
+                <span className="text-primary">${cartTotal.toFixed(2)}</span>
               </div>
             </div>
             <Button
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+              className="w-full bg-primary hover:bg-primary/90 text-white"
               size="lg"
               disabled={placing}
               onClick={() => placeOrder(false)}
@@ -705,7 +734,7 @@ function ProductCard({
     <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
       {/* Image with Lightbox */}
       <Dialog>
-        <DialogTrigger className="relative block w-full aspect-[4/3] bg-orange-50/50 dark:bg-slate-800/50 overflow-hidden shrink-0 cursor-zoom-in group-hover:bg-orange-100/50 transition-colors text-4xl">
+        <DialogTrigger className="relative block w-full aspect-[4/3] bg-muted overflow-hidden shrink-0 cursor-zoom-in group-hover:bg-muted/70 transition-colors text-4xl">
           {p.image_url ? (
             <Image src={p.image_url} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
           ) : (
@@ -714,8 +743,8 @@ function ProductCard({
             </span>
           )}
           {p.featured && (
-            <Badge className="absolute top-1.5 left-1.5 bg-orange-500 text-white text-[10px] px-1.5 py-0 shadow-sm">
-              ⭐ Destacado
+            <Badge className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] px-1.5 py-0 shadow-sm gap-1">
+              <Star className="h-2.5 w-2.5" fill="currentColor" /> Destacado
             </Badge>
           )}
           {/* Subtle gradient overlay at bottom for depth */}
@@ -734,10 +763,10 @@ function ProductCard({
               <div className="absolute inset-0 flex items-center justify-center text-6xl">🍽️</div>
             )}
           </div>
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-xl mt-2">
+          <div className="bg-card p-4 rounded-xl shadow-xl mt-2">
             <h3 className="font-bold text-lg">{p.name}</h3>
             {p.description && <p className="text-sm text-muted-foreground mt-1">{p.description}</p>}
-            <p className="text-orange-600 font-bold mt-2">${p.price.toFixed(2)}</p>
+            <p className="text-primary font-bold mt-2">${p.price.toFixed(2)}</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -755,7 +784,7 @@ function ProductCard({
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <p className="font-display text-orange-600 font-bold text-base tabular">${p.price.toFixed(2)}</p>
+          <p className="font-display text-primary font-bold text-base tabular">${p.price.toFixed(2)}</p>
           {readOnly ? null : cartItem && !hasModifiers ? (
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
               <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md hover:bg-background shadow-sm" onClick={onDec}>
@@ -770,7 +799,7 @@ function ProductCard({
             <Button
               size="sm"
               className={`h-7 text-xs text-white px-2.5 transition-all active:scale-90 ${
-                justAdded ? "bg-green-500 hover:bg-green-500" : "bg-orange-500 hover:bg-orange-600"
+                justAdded ? "bg-green-500 hover:bg-green-500" : "bg-primary hover:bg-primary/90"
               }`}
               onClick={handleAdd}
             >
