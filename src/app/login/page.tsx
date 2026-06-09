@@ -34,12 +34,12 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex-1 flex items-center justify-center min-h-screen p-6 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 overflow-hidden">
+    <main className="relative flex-1 flex items-center justify-center min-h-screen p-6 bg-background overflow-hidden">
       {/* Glassmorphism background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-orange-300/30 dark:bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-rose-300/30 dark:bg-rose-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-200/20 dark:bg-amber-500/5 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/15 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gold/15 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
       </div>
 
       {/* Theme toggle top-right */}
@@ -50,21 +50,19 @@ export default function LoginPage() {
       {/* Login card */}
       <Card className="relative z-10 w-full max-w-sm glass-card animate-premium-in">
         {/* Gold shimmer line at top */}
-        <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
+        <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
 
         <CardHeader className="text-center">
           {/* Branding */}
           <div className="flex flex-col items-center gap-3">
-            <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md p-3 rounded-2xl shadow-sm">
+            <div className="bg-card/60 backdrop-blur-md p-3 rounded-2xl shadow-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
             </div>
             <div className="space-y-1">
               <p className="text-[10px] tracking-[0.4em] uppercase text-gold-gradient font-semibold">— Restaurante —</p>
-              <h1 className="font-display text-3xl font-medium tracking-tight">
-                <span className="bg-gradient-to-br from-orange-500 to-rose-600 bg-clip-text text-transparent">
-                  El Buen Comer
-                </span>
+              <h1 className="font-display text-3xl font-medium tracking-tight text-primary">
+                El Buen Comer
               </h1>
             </div>
             <p className="font-display italic text-sm text-muted-foreground">

@@ -65,7 +65,14 @@ export default function KitchenPage() {
   const autoPrintRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const firstLoadRef = useRef(true);
+  const [, forceTick] = useState(0);
   const supabase = createClient();
+
+  // Re-render every 30s so ticket-aging colors stay current
+  useEffect(() => {
+    const id = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   function toggleSound() {
     const next = !soundEnabled;
@@ -389,13 +396,22 @@ function OrderCard({
   onCancel: () => void;
   actions: React.ReactNode;
 }) {
+  // Ticket aging: glanceable priority cue (gris <5m · ámbar 5-10m · rojo >10m)
+  const ageMin = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000);
+  const ageClass =
+    ageMin >= 10
+      ? "border-red-500 text-red-300 bg-red-900/30 animate-pulse"
+      : ageMin >= 5
+      ? "border-amber-500 text-amber-300 bg-amber-900/20"
+      : "border-gray-600 text-gray-300";
+
   return (
     <Card className={`bg-gray-800 border-l-4 ${color} text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/20 animate-in fade-in slide-in-from-bottom-2`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-bold">#{order.order_number}</CardTitle>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-gray-300 border-gray-600">
+            <Badge variant="outline" className={ageClass}>
               {timeSince(order.created_at)}
             </Badge>
             <Button

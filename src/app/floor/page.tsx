@@ -86,10 +86,10 @@ export default function FloorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-      <header className="bg-white dark:bg-slate-900 border-b px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <MapPin className="h-5 w-5 text-violet-500" />
+        <MapPin className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Salón</h1>
         <div className="flex-1" />
         <div className="hidden md:flex items-center gap-3 text-sm">
@@ -111,7 +111,7 @@ export default function FloorPage() {
       <div className="p-6">
         {loading ? (
           <div className="flex items-center justify-center h-[60vh]">
-            <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : tables.length === 0 ? (
           <Card className="max-w-md mx-auto mt-12">
@@ -119,7 +119,7 @@ export default function FloorPage() {
               <MapPin className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
               <p className="font-semibold">No has configurado mesas todavía</p>
               <Link href="/admin/tables">
-                <Button className="bg-orange-500 hover:bg-orange-600">Configurar mesas</Button>
+                <Button>Configurar mesas</Button>
               </Link>
             </CardContent>
           </Card>
@@ -128,7 +128,7 @@ export default function FloorPage() {
             {/* Floor map */}
             <div className="flex-1 overflow-x-auto">
               <div
-                className="relative bg-white dark:bg-slate-900 rounded-xl border shadow-sm mx-auto"
+                className="relative bg-card rounded-xl border shadow-sm mx-auto"
                 style={{
                   width: GRID_COLS * CELL,
                   height: GRID_ROWS * CELL,
@@ -148,7 +148,7 @@ export default function FloorPage() {
                     <button
                       key={t.id}
                       onClick={() => openTable(t)}
-                      className={`absolute ${rounded} ${s.bg} ring-2 ${s.ring} ring-offset-2 ring-offset-white dark:ring-offset-slate-900 flex flex-col items-center justify-center cursor-pointer shadow-sm hover:shadow-xl hover:scale-105 transition-all`}
+                      className={`absolute ${rounded} ${s.bg} ring-2 ${s.ring} ring-offset-2 ring-offset-background flex flex-col items-center justify-center cursor-pointer shadow-sm hover:shadow-xl hover:scale-105 transition-all`}
                       style={{ left: t.x * CELL + 3, top: t.y * CELL + 3, width: w, height: h }}
                       title={`${t.name} · ${s.label}`}
                     >

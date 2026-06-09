@@ -57,7 +57,7 @@ export default function DisplayPage() {
           {logoUrl ? (
             <img src={logoUrl} alt="" className="h-12 w-12 rounded-xl object-cover" />
           ) : (
-            <div className="h-12 w-12 rounded-xl bg-orange-500 flex items-center justify-center text-2xl">🍽️</div>
+            <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-2xl">🍽️</div>
           )}
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight">{restaurantName}</h1>

@@ -47,7 +47,7 @@ const QR_STATUS: Record<string, { label: string; color: string; icon: React.Elem
   pending: { label: "Pendiente", color: "bg-yellow-100 text-yellow-800", icon: Clock },
   preparing: { label: "Preparando", color: "bg-blue-100 text-blue-800", icon: ChefHat },
   ready: { label: "Listo", color: "bg-green-100 text-green-800", icon: CheckCircle2 },
-  delivered: { label: "Entregado", color: "bg-gray-100 text-gray-800", icon: CheckCircle2 },
+  delivered: { label: "Entregado", color: "bg-muted text-foreground", icon: CheckCircle2 },
   cancelled: { label: "Cancelado", color: "bg-red-100 text-red-800", icon: XCircle },
 };
 
@@ -573,15 +573,15 @@ export default function POSPage() {
   // ── Loading / error ──────────────────────────────────────────
   if (loadingProducts) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-100">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <div className="flex h-screen items-center justify-center bg-muted">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (errorProducts) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-gray-100 gap-4">
+      <div className="flex h-screen flex-col items-center justify-center bg-muted gap-4">
         <AlertCircle className="h-10 w-10 text-destructive" />
         <p className="font-semibold">No se pudo cargar el menú</p>
         <Button onClick={() => window.location.reload()}>Reintentar</Button>
@@ -590,7 +590,7 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-muted">
       {/* Modifier picker */}
       {pickerProduct && (
         <ModifierPicker
@@ -649,7 +649,7 @@ export default function POSPage() {
       )}
 
       {/* ── Header ── */}
-      <header className="bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0">
+      <header className="bg-card border-b px-4 py-3 flex items-center gap-3 shrink-0">
         <Link href="/">
           <Button variant="ghost" size="icon">
             <Home className="h-5 w-5" />
@@ -668,13 +668,13 @@ export default function POSPage() {
         <ThemeToggle />
 
         {/* Tab switcher */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
           <button
             onClick={() => setActiveTab("sell")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
               activeTab === "sell"
-                ? "bg-white shadow-sm text-gray-900"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <ShoppingBag className="h-4 w-4" /> Vender
@@ -683,13 +683,13 @@ export default function POSPage() {
             onClick={() => setActiveTab("orders")}
             className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
               activeTab === "orders"
-                ? "bg-white shadow-sm text-gray-900"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <QrCode className="h-4 w-4" /> Órdenes QR
             {pendingCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
                 {pendingCount}
               </span>
             )}
@@ -698,8 +698,8 @@ export default function POSPage() {
 
         {activeTab === "sell" && (
           <>
-            <h1 className="text-lg font-bold text-gray-800 hidden md:flex items-center gap-1.5">
-              <ShoppingBag className="h-5 w-5 text-orange-500" /> POS — El Buen Comer
+            <h1 className="text-lg font-bold text-foreground hidden md:flex items-center gap-1.5">
+              <ShoppingBag className="h-5 w-5 text-primary" /> POS — El Buen Comer
             </h1>
             {!isOnline && (
               <span className="flex items-center gap-1.5 bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-lg text-xs font-medium">
@@ -727,7 +727,7 @@ export default function POSPage() {
 
         {activeTab === "orders" && (
           <>
-            <h1 className="text-lg font-bold text-gray-800">Órdenes del día — QR</h1>
+            <h1 className="text-lg font-bold text-foreground">Órdenes del día — QR</h1>
             <div className="flex-1" />
             <Button variant="outline" size="sm" onClick={loadQROrders}>
               Actualizar
@@ -744,14 +744,14 @@ export default function POSPage() {
           {/* Left: products */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Category pills */}
-            <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
+            <div className="bg-card border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
               {categories.map((cat) => (
                 <Button
                   key={cat.id}
                   variant={activeCategory === cat.id ? "default" : "outline"}
                   size="sm"
                   className={`shrink-0 ${
-                    activeCategory === cat.id ? "bg-orange-500 hover:bg-orange-600" : ""
+                    activeCategory === cat.id ? "bg-primary hover:bg-primary/90" : ""
                   }`}
                   onClick={() => setActiveCategory(cat.id)}
                 >
@@ -770,12 +770,12 @@ export default function POSPage() {
                     <Card
                       key={p.id}
                       className={`group cursor-pointer overflow-hidden transition-all duration-200 relative p-0 hover:shadow-lg hover:-translate-y-0.5 ${
-                        inCart ? "ring-2 ring-orange-500 shadow-md" : ""
+                        inCart ? "ring-2 ring-primary shadow-md" : ""
                       }`}
                       onClick={() => handleAddProduct(p)}
                     >
                       {/* Square image / fallback */}
-                      <div className="relative aspect-square w-full bg-gradient-to-br from-orange-50 to-amber-100 dark:from-slate-800 dark:to-slate-700 overflow-hidden">
+                      <div className="relative aspect-square w-full bg-muted overflow-hidden">
                         {p.image_url ? (
                           <Image
                             src={p.image_url}
@@ -785,7 +785,7 @@ export default function POSPage() {
                             className="object-cover object-center transition-transform duration-300 group-hover:scale-105"
                           />
                         ) : (
-                          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-orange-400 to-rose-400 text-white">
+                          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
                             <span className="text-5xl font-bold opacity-80">{initial}</span>
                           </div>
                         )}
@@ -794,7 +794,7 @@ export default function POSPage() {
                         <button
                           type="button"
                           title="Marcar agotado (86)"
-                          className="absolute top-1.5 left-1.5 z-10 h-6 w-6 rounded-full bg-white/80 hover:bg-red-500 hover:text-white text-gray-600 text-[10px] font-bold flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm"
+                          className="absolute top-1.5 left-1.5 z-10 h-6 w-6 rounded-full bg-card/80 hover:bg-destructive hover:text-white text-muted-foreground text-[10px] font-bold flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm"
                           onClick={(e) => { e.stopPropagation(); setPinTarget86(p); }}
                         >
                           86
@@ -809,7 +809,7 @@ export default function POSPage() {
 
                         {/* Bottom-right: in-cart quantity badge (large, prominent) */}
                         {inCart && (
-                          <div className="absolute bottom-1.5 right-1.5 z-10 h-7 min-w-7 px-2 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center shadow-lg ring-2 ring-white">
+                          <div className="absolute bottom-1.5 right-1.5 z-10 h-7 min-w-7 px-2 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center shadow-lg ring-2 ring-white">
                             {inCart.quantity}
                           </div>
                         )}
@@ -818,7 +818,7 @@ export default function POSPage() {
                       {/* Name + price */}
                       <div className="p-2.5">
                         <p className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5em]">{p.name}</p>
-                        <p className="text-orange-600 font-bold text-base mt-1">
+                        <p className="text-primary font-bold text-base mt-1">
                           ${p.price.toFixed(2)}
                         </p>
                       </div>
@@ -835,7 +835,7 @@ export default function POSPage() {
           </div>
 
           {/* Right: cart */}
-          <div className="w-96 bg-white border-l flex flex-col overflow-hidden">
+          <div className="w-96 bg-card border-l flex flex-col overflow-hidden">
             <div className="p-4 border-b shrink-0">
               <h2 className="font-bold text-lg">Orden Actual</h2>
               <p className="text-sm text-muted-foreground">{orderCount} items</p>
@@ -862,7 +862,7 @@ export default function POSPage() {
                             {item.modifiers!.map((m) => m.modifier_name).join(", ")}
                           </p>
                         )}
-                        <p className="text-sm text-orange-600 font-semibold">
+                        <p className="text-sm text-primary font-semibold">
                           ${(lineUnitPrice(item) * item.quantity).toFixed(2)}
                         </p>
                       </div>
@@ -903,7 +903,7 @@ export default function POSPage() {
             </ScrollArea>
 
             {/* Footer: form scrolls, total + button always pinned */}
-            <div className="border-t shrink-0 flex flex-col min-h-0 max-h-[62%] bg-white">
+            <div className="border-t shrink-0 flex flex-col min-h-0 max-h-[62%] bg-card">
             <div className="overflow-y-auto p-4 space-y-3">
               {/* Order type selector */}
               <div className="grid grid-cols-3 gap-1.5">
@@ -917,7 +917,7 @@ export default function POSPage() {
                     type="button"
                     variant={orderType === opt.v ? "default" : "outline"}
                     size="sm"
-                    className={orderType === opt.v ? "bg-orange-500 hover:bg-orange-600" : ""}
+                    className={orderType === opt.v ? "bg-primary hover:bg-primary/90" : ""}
                     onClick={() => setOrderType(opt.v)}
                   >
                     {opt.label}
@@ -945,11 +945,11 @@ export default function POSPage() {
                 }}
               />
               {customerLookup && (
-                <div className="flex items-center justify-between text-xs bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5">
-                  <span className="text-indigo-800 font-medium">
+                <div className="flex items-center justify-between text-xs bg-primary/10 border border-primary/20 rounded-lg px-2.5 py-1.5">
+                  <span className="text-primary font-medium">
                     🌟 {customerLookup.name || "Cliente frecuente"}
                   </span>
-                  <span className="text-indigo-600 tabular-nums">
+                  <span className="text-primary/80 tabular-nums">
                     {customerLookup.total_orders} órdenes
                     {loyaltyCfg.enabled && ` · ${customerLookup.loyalty_points} pts`}
                   </span>
@@ -981,8 +981,8 @@ export default function POSPage() {
                       onClick={() => setPaymentMethod(pm.value)}
                       className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
                         paymentMethod === pm.value
-                          ? "bg-orange-50 border-orange-400 text-orange-700"
-                          : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "border-border text-muted-foreground hover:border-foreground/30"
                       }`}
                     >
                       <span className="text-base">{pm.emoji}</span>
@@ -1050,7 +1050,7 @@ export default function POSPage() {
             </div>
 
             {/* Pinned: breakdown + action button (always visible) */}
-            <div className="p-4 pt-3 border-t shrink-0 space-y-2 bg-white">
+            <div className="p-4 pt-3 border-t shrink-0 space-y-2 bg-card">
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
@@ -1076,12 +1076,12 @@ export default function POSPage() {
                 )}
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span>Total</span>
-                  <span className="text-orange-600">${orderTotal.toFixed(2)}</span>
+                  <span className="text-primary">${orderTotal.toFixed(2)}</span>
                 </div>
               </div>
 
               <Button
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                className="w-full bg-primary hover:bg-primary/90 text-white"
                 size="lg"
                 disabled={items.length === 0 || sending}
                 onClick={submitOrder}
@@ -1101,7 +1101,7 @@ export default function POSPage() {
       {activeTab === "orders" && (
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Filter bar */}
-          <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
+          <div className="bg-card border-b px-4 py-2 flex gap-2 overflow-x-auto shrink-0">
             {QR_FILTER_OPTS.map((f) => {
               const count =
                 f.value === "all"
@@ -1113,7 +1113,7 @@ export default function POSPage() {
                   variant={qrFilter === f.value ? "default" : "outline"}
                   size="sm"
                   className={`shrink-0 ${
-                    qrFilter === f.value ? "bg-orange-500 hover:bg-orange-600" : ""
+                    qrFilter === f.value ? "bg-primary hover:bg-primary/90" : ""
                   }`}
                   onClick={() => setQrFilter(f.value)}
                 >
@@ -1126,7 +1126,7 @@ export default function POSPage() {
 
           {qrLoading ? (
             <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : filteredQR.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -1159,7 +1159,7 @@ export default function POSPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-orange-400 text-orange-600 hover:bg-orange-50 gap-1.5 text-xs"
+                              className="border-primary/40 text-primary hover:bg-primary/10 gap-1.5 text-xs"
                               onClick={() => setBillingOrders(group.orders)}
                             >
                               <ReceiptText className="h-3.5 w-3.5" />
@@ -1213,7 +1213,7 @@ export default function POSPage() {
                                       className="flex justify-between text-sm"
                                     >
                                       <span>
-                                        <span className="font-semibold text-orange-600">
+                                        <span className="font-semibold text-primary">
                                           {item.quantity}x
                                         </span>{" "}
                                         {item.product_name}
@@ -1234,12 +1234,12 @@ export default function POSPage() {
 
                                 {/* Footer */}
                                 <div className="flex items-center justify-between px-4 py-2">
-                                  <span className="font-bold text-orange-600">
+                                  <span className="font-bold text-primary">
                                     ${Number(order.total).toFixed(2)}
                                   </span>
                                   <Button
                                     size="sm"
-                                    className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                                    className="bg-primary hover:bg-primary/90 text-white gap-1.5"
                                     onClick={() => setBillingOrders([order])}
                                   >
                                     <ReceiptText className="h-4 w-4" />
