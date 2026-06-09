@@ -28,7 +28,7 @@ export function CancelDialog({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-sm w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card rounded-lg max-w-sm w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 text-destructive">
           <XCircle className="h-5 w-5" />
           <h3 className="font-bold text-lg">Cancelar Orden</h3>
@@ -42,7 +42,7 @@ export function CancelDialog({
                 key={r}
                 variant={reason === r ? "default" : "outline"}
                 size="sm"
-                className={reason === r ? "bg-orange-500 hover:bg-orange-600" : ""}
+                className={reason === r ? "bg-primary hover:bg-primary/90" : ""}
                 onClick={() => { setReason(r); setCustom(""); }}
               >
                 {r}
@@ -51,7 +51,7 @@ export function CancelDialog({
             <Button
               variant={reason === "custom" ? "default" : "outline"}
               size="sm"
-              className={reason === "custom" ? "bg-orange-500 hover:bg-orange-600" : ""}
+              className={reason === "custom" ? "bg-primary hover:bg-primary/90" : ""}
               onClick={() => setReason("custom")}
             >
               Otro...

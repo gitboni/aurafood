@@ -78,7 +78,7 @@ export default function UsersPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <Users className="h-5 w-5 text-indigo-500" />
+        <Users className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Gestión de Usuarios</h1>
         <div className="flex-1" />
         <ThemeToggle />
@@ -111,7 +111,7 @@ export default function UsersPage() {
                 </Select>
               </div>
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={createUser} disabled={creating}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={createUser} disabled={creating}>
               {creating ? "Creando..." : "Crear Usuario"}
             </Button>
           </CardContent>
@@ -127,7 +127,7 @@ export default function UsersPage() {
             {profiles.map((p) => (
               <Card key={p.id}>
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                     {(p.display_name || "U")[0].toUpperCase()}
                   </div>
                   <div className="flex-1">

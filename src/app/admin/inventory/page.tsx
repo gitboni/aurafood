@@ -253,14 +253,14 @@ export default function InventoryPage() {
   };
   const MOVE_COLOR: Record<string, string> = {
     sale: "text-red-600",
-    waste: "text-orange-600",
+    waste: "text-amber-600",
     purchase: "text-green-600",
     adjustment: "text-blue-600",
   };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 
@@ -299,7 +299,7 @@ export default function InventoryPage() {
         <Button variant="outline" onClick={openPurchase}>
           <ShoppingCart className="h-4 w-4 mr-2" /> Registrar Compra
         </Button>
-        <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
+        <Button className="bg-primary hover:bg-primary/90" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Agregar Ingrediente
         </Button>
         <Button variant="ghost" size="icon" onClick={async () => {
@@ -324,10 +324,10 @@ export default function InventoryPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Stock bajo</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${lowStock.length > 0 ? "text-orange-600" : ""}`}>
+              <div className={`text-2xl font-bold ${lowStock.length > 0 ? "text-amber-600" : ""}`}>
                 {lowStock.length}
               </div>
             </CardContent>
@@ -347,7 +347,7 @@ export default function InventoryPage() {
             <TabsTrigger value="movements">
               Movimientos
               {lowStock.length > 0 && (
-                <Badge className="ml-2 bg-orange-500 text-white text-[10px]">{lowStock.length} bajo</Badge>
+                <Badge className="ml-2 bg-amber-500 text-white text-[10px]">{lowStock.length} bajo</Badge>
               )}
             </TabsTrigger>
           </TabsList>
@@ -355,7 +355,7 @@ export default function InventoryPage() {
           {/* ── Ingredients tab ── */}
           <TabsContent value="ingredients" className="mt-4">
             {lowStock.length > 0 && (
-              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2 text-sm text-orange-800">
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>Stock bajo: <strong>{lowStock.map((i) => i.name).join(", ")}</strong></span>
               </div>
@@ -365,19 +365,19 @@ export default function InventoryPage() {
               {ingredients.map((ing) => {
                 const isLow = ing.min_stock > 0 && ing.stock <= ing.min_stock;
                 return (
-                  <Card key={ing.id} className={isLow ? "border-orange-300" : ""}>
+                  <Card key={ing.id} className={isLow ? "border-amber-400" : ""}>
                     <CardContent className="flex items-center gap-3 p-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold truncate">{ing.name}</p>
                           {isLow && (
-                            <Badge className="bg-orange-100 text-orange-700 border-0 text-[10px]">
+                            <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-0 text-[10px]">
                               Stock bajo
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-sm">
-                          <span className={`font-bold ${isLow ? "text-orange-600" : "text-emerald-600"}`}>
+                          <span className={`font-bold ${isLow ? "text-amber-600" : "text-emerald-600"}`}>
                             {ing.stock.toLocaleString("es-MX", { maximumFractionDigits: 3 })} {ing.unit}
                           </span>
                           {ing.min_stock > 0 && (
@@ -498,7 +498,7 @@ export default function InventoryPage() {
                 <Input type="number" min="0" step="0.01" value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} placeholder="0.00" />
               </div>
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveIngredient}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={saveIngredient}>
               {editing ? "Guardar Cambios" : "Crear Ingrediente"}
             </Button>
           </div>
@@ -552,7 +552,7 @@ export default function InventoryPage() {
               <Button variant="outline" className="flex-1" onClick={() => setAdjustTarget(null)}>
                 Cancelar
               </Button>
-              <Button className="flex-1 bg-orange-500 hover:bg-orange-600" onClick={saveAdjustment}>
+              <Button className="flex-1 bg-primary hover:bg-primary/90" onClick={saveAdjustment}>
                 Confirmar
               </Button>
             </div>

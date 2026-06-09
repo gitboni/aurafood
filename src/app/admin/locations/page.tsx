@@ -80,13 +80,13 @@ export default function LocationsPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 
   if (needsSetup) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
-      <MapPin className="h-12 w-12 text-orange-500" />
+      <MapPin className="h-12 w-12 text-primary" />
       <h2 className="text-xl font-bold">Configura la tabla de sucursales</h2>
       <p className="text-muted-foreground text-center max-w-md">
         Ejecuta <code className="bg-muted px-1 rounded">supabase-crm-locations.sql</code> en Supabase.
@@ -99,10 +99,10 @@ export default function LocationsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <MapPin className="h-5 w-5 text-orange-500" />
+        <MapPin className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Sucursales</h1>
         <div className="flex-1" />
-        <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
+        <Button className="bg-primary hover:bg-primary/90" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Nueva Sucursal
         </Button>
         <Button variant="ghost" size="icon" onClick={async () => {
@@ -119,14 +119,14 @@ export default function LocationsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {locations.map((loc) => (
-              <Card key={loc.id} className={`${!loc.active ? "opacity-50" : ""} ${activeId === loc.id ? "ring-2 ring-orange-400" : ""}`}>
+              <Card key={loc.id} className={`${!loc.active ? "opacity-50" : ""} ${activeId === loc.id ? "ring-2 ring-primary" : ""}`}>
                 <CardContent className="flex items-start gap-3 p-4">
-                  <MapPin className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+                  <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold">{loc.name}</p>
                       {activeId === loc.id && (
-                        <Badge className="bg-orange-100 text-orange-700 border-0 text-[10px]">Activa</Badge>
+                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">Activa</Badge>
                       )}
                     </div>
                     {loc.address && <p className="text-xs text-muted-foreground truncate">{loc.address}</p>}
@@ -169,7 +169,7 @@ export default function LocationsPage() {
               <Input value={address} onChange={(e) => setAddress(e.target.value)} /></div>
             <div><Label>Teléfono</Label>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={save}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={save}>
               {editing ? "Guardar" : "Crear"}
             </Button>
           </div>

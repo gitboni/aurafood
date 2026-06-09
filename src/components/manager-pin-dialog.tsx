@@ -50,11 +50,11 @@ export function ManagerPinDialog({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl max-w-xs w-full p-6 space-y-4"
+        className="bg-card rounded-xl max-w-xs w-full p-6 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-orange-600">
+          <div className="flex items-center gap-2 text-primary">
             <Lock className="h-5 w-5" />
             <h3 className="font-bold text-lg">PIN del Gerente</h3>
           </div>
@@ -84,7 +84,7 @@ export function ManagerPinDialog({
             Cancelar
           </Button>
           <Button
-            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+            className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
             onClick={verify}
             disabled={checking || !pin.trim()}
           >

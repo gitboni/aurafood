@@ -83,14 +83,14 @@ export function ModifierPicker({
                         onClick={() => toggle(g, m.id)}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-all ${
                           isSel
-                            ? "bg-orange-50 border-orange-400 text-orange-800"
-                            : "border-gray-200 hover:border-gray-300"
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "border-border hover:border-foreground/30"
                         }`}
                       >
                         <span className="flex items-center gap-2">
                           <span
                             className={`h-4 w-4 rounded-${g.max_select === 1 ? "full" : "sm"} border flex items-center justify-center ${
-                              isSel ? "bg-orange-500 border-orange-500" : "border-gray-300"
+                              isSel ? "bg-primary border-primary" : "border-input"
                             }`}
                           >
                             {isSel && <span className="h-2 w-2 bg-white rounded-full" />}
@@ -113,7 +113,7 @@ export function ModifierPicker({
             Cancelar
           </Button>
           <Button
-            className="bg-orange-500 hover:bg-orange-600 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={missingRequired.length > 0}
             onClick={() => onConfirm(allModifiers)}
           >

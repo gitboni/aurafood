@@ -47,13 +47,13 @@ export default function CustomersPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 
   if (needsSetup) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
-      <Users className="h-12 w-12 text-indigo-500" />
+      <Users className="h-12 w-12 text-primary" />
       <h2 className="text-xl font-bold">Configura la tabla de clientes</h2>
       <p className="text-muted-foreground text-center max-w-md">
         Ejecuta <code className="bg-muted px-1 rounded">supabase-crm-locations.sql</code> en Supabase, luego reintenta.
@@ -66,7 +66,7 @@ export default function CustomersPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <Users className="h-5 w-5 text-indigo-500" />
+        <Users className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Clientes</h1>
         <div className="flex-1" />
         <Button variant="ghost" size="icon" onClick={async () => {
@@ -79,7 +79,7 @@ export default function CustomersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm text-muted-foreground">Clientes registrados</CardTitle>
-              <Users className="h-4 w-4 text-indigo-500" />
+              <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent><div className="text-2xl font-bold">{customers.length}</div></CardContent>
           </Card>
@@ -93,7 +93,7 @@ export default function CustomersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm text-muted-foreground">Ticket promedio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-500" />
+              <TrendingUp className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">${isFinite(avgTicketPerCustomer) ? avgTicketPerCustomer.toFixed(0) : 0}</div>

@@ -40,7 +40,7 @@ export function LowStockAlert() {
 
   return (
     <Link href="/admin/inventory">
-      <div className="flex items-center gap-1.5 bg-orange-100 text-orange-800 border border-orange-300 px-2.5 py-1 rounded-lg text-xs font-medium hover:bg-orange-200 transition-colors cursor-pointer">
+      <div className="flex items-center gap-1.5 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-900 px-2.5 py-1 rounded-lg text-xs font-medium hover:bg-amber-200 dark:hover:bg-amber-900/40 transition-colors cursor-pointer">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         <span>
           {lowStock.length} ingrediente{lowStock.length > 1 ? "s" : ""} con stock bajo

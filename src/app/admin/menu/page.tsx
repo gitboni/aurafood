@@ -315,7 +315,7 @@ export default function AdminMenuPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -372,7 +372,7 @@ export default function AdminMenuPage() {
             <div className="flex justify-between items-center">
               <p className="text-muted-foreground">Administra los productos de tu menú</p>
               <Button
-                className="bg-orange-500 hover:bg-orange-600"
+                className="bg-primary hover:bg-primary/90"
                 onClick={() => openProdDialog()}
               >
                 <Plus className="h-4 w-4 mr-2" /> Agregar Producto
@@ -406,7 +406,7 @@ export default function AdminMenuPage() {
                                 <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
                               )}
                             </div>
-                            <p className="text-orange-600 font-bold">${p.price.toFixed(2)}</p>
+                            <p className="text-primary font-bold">${p.price.toFixed(2)}</p>
                             {p.track_stock && (
                               <p className="text-xs text-muted-foreground">
                                 Stock: {p.stock ?? "—"}
@@ -458,7 +458,7 @@ export default function AdminMenuPage() {
             <div className="flex justify-between items-center">
               <p className="text-muted-foreground">Organiza tu menú por categorías</p>
               <Button
-                className="bg-orange-500 hover:bg-orange-600"
+                className="bg-primary hover:bg-primary/90"
                 onClick={() => openCatDialog()}
               >
                 <Plus className="h-4 w-4 mr-2" /> Agregar Categoría
@@ -539,7 +539,7 @@ export default function AdminMenuPage() {
                 placeholder="Descripción de la categoría"
               />
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveCat}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={saveCat}>
               {editingCat ? "Guardar Cambios" : "Crear Categoría"}
             </Button>
           </div>
@@ -655,7 +655,7 @@ export default function AdminMenuPage() {
                 </div>
               )}
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveProd}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={saveProd}>
               {editingProd ? "Guardar Cambios" : "Crear Producto"}
             </Button>
 
@@ -750,7 +750,7 @@ export default function AdminMenuPage() {
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       Primero crea ingredientes en{" "}
-                      <a href="/admin/inventory" className="underline text-orange-600">Inventario</a>
+                      <a href="/admin/inventory" className="underline text-primary">Inventario</a>
                     </p>
                   )}
                 </div>

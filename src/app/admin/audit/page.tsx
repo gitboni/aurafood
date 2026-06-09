@@ -93,13 +93,13 @@ export default function AuditPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 
   if (needsSetup) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
-      <History className="h-12 w-12 text-orange-500" />
+      <History className="h-12 w-12 text-primary" />
       <h2 className="text-xl font-bold">Configura la tabla de auditoría</h2>
       <p className="text-muted-foreground text-center max-w-md">
         Ejecuta <code className="bg-muted px-1 rounded">supabase-ops.sql</code> en Supabase.
@@ -112,7 +112,7 @@ export default function AuditPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <History className="h-5 w-5 text-orange-500" />
+        <History className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Auditoría</h1>
         <div className="flex-1" />
         <Button variant="ghost" size="icon" onClick={async () => {

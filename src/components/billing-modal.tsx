@@ -40,7 +40,7 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-md w-full max-h-[92vh] overflow-auto shadow-2xl"
+        className="bg-card rounded-2xl max-w-md w-full max-h-[92vh] overflow-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -51,7 +51,7 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
             </h2>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {order.customer_table && (
-                <span className="text-sm font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                <span className="text-sm font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                   Mesa {order.customer_table}
                 </span>
               )}
@@ -79,7 +79,7 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
             {order.order_items?.map((item) => (
               <div key={item.id} className="flex justify-between text-sm">
                 <span className="flex-1 min-w-0">
-                  <span className="font-semibold text-orange-600">{item.quantity}x</span>{" "}
+                  <span className="font-semibold text-primary">{item.quantity}x</span>{" "}
                   {item.product_name}
                   {item.notes && (
                     <span className="text-xs text-muted-foreground ml-1 italic">
@@ -104,7 +104,7 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
 
           <div className="flex justify-between items-center text-2xl font-bold">
             <span>Total</span>
-            <span className="text-orange-600">${total.toFixed(2)}</span>
+            <span className="text-primary">${total.toFixed(2)}</span>
           </div>
 
           {/* Payment method */}
@@ -120,8 +120,8 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
                   onClick={() => setPaymentMethod(pm.value)}
                   className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 text-sm font-medium transition-all ${
                     paymentMethod === pm.value
-                      ? "bg-orange-50 border-orange-400 text-orange-700 shadow-sm"
-                      : "border-gray-200 text-muted-foreground hover:border-gray-300"
+                      ? "bg-primary/10 border-primary text-primary shadow-sm"
+                      : "border-border text-muted-foreground hover:border-foreground/30"
                   }`}
                 >
                   <span className="text-xl">{pm.emoji}</span>
@@ -159,7 +159,7 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
           )}
 
           <Button
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white h-12 text-base font-semibold"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-semibold"
             onClick={handlePrint}
           >
             <Printer className="h-5 w-5 mr-2" />

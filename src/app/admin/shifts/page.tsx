@@ -175,7 +175,7 @@ export default function ShiftsPage() {
   const closingVal = parseFloat(closingCash);
   const diff = !isNaN(closingVal) ? closingVal - expected : null;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Clock className="h-8 w-8 animate-spin text-orange-500" /></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Clock className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -201,7 +201,7 @@ export default function ShiftsPage() {
                 <Label>Efectivo inicial en caja</Label>
                 <Input type="number" step="0.01" placeholder="0.00" value={openingCash} onChange={(e) => setOpeningCash(e.target.value)} />
               </div>
-              <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={openShift}>Abrir Turno</Button>
+              <Button className="w-full bg-primary hover:bg-primary/90" onClick={openShift}>Abrir Turno</Button>
             </CardContent>
           </Card>
         ) : (
@@ -259,7 +259,7 @@ export default function ShiftsPage() {
                   <div className="flex-1 min-w-[160px]">
                     <Input placeholder="Motivo (ej: compra de servilletas)" value={cashReason} onChange={(e) => setCashReason(e.target.value)} />
                   </div>
-                  <Button className="bg-orange-500 hover:bg-orange-600" onClick={addMovement}>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={addMovement}>
                     <Plus className="h-4 w-4 mr-1" /> Registrar
                   </Button>
                 </div>

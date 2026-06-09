@@ -130,7 +130,7 @@ export default function ModifiersPage() {
         <Sliders className="h-5 w-5 text-teal-500" />
         <h1 className="text-xl font-bold">Modificadores de Producto</h1>
         <div className="flex-1" />
-        <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openGroupDialog()}>
+        <Button className="bg-primary hover:bg-primary/90" onClick={() => openGroupDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Nuevo Grupo
         </Button>
         <ThemeToggle />
@@ -186,7 +186,7 @@ export default function ModifiersPage() {
               <div className="flex gap-2">
                 <Input placeholder="Nombre del modificador" value={addingModTo === group.id ? modName : ""} onChange={(e) => { setAddingModTo(group.id); setModName(e.target.value); }} onFocus={() => setAddingModTo(group.id)} />
                 <Input type="number" placeholder="Precio" className="w-24" value={addingModTo === group.id ? modPrice : ""} onChange={(e) => { setAddingModTo(group.id); setModPrice(e.target.value); }} onFocus={() => setAddingModTo(group.id)} />
-                <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={addModifier} disabled={!modName.trim() || addingModTo !== group.id}>
+                <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={addModifier} disabled={!modName.trim() || addingModTo !== group.id}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -203,7 +203,7 @@ export default function ModifiersPage() {
                           key={p.id}
                           variant={linked ? "default" : "outline"}
                           size="sm"
-                          className={linked ? "bg-orange-500 hover:bg-orange-600" : ""}
+                          className={linked ? "bg-primary hover:bg-primary/90" : ""}
                           onClick={() => toggleProductLink(group.id, p.id)}
                         >
                           {linked && <Check className="h-3 w-3 mr-1" />}
@@ -233,7 +233,7 @@ export default function ModifiersPage() {
               </div>
               <div><Label>Máximo selecciones</Label><Input type="number" min="1" value={groupMaxSelect} onChange={(e) => setGroupMaxSelect(e.target.value)} /></div>
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveGroup}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={saveGroup}>
               {editingGroup ? "Guardar Cambios" : "Crear Grupo"}
             </Button>
           </div>

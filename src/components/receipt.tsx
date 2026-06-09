@@ -111,7 +111,7 @@ export function Receipt({
         <div className="flex gap-2 p-3 border-b print:hidden">
           <Button
             onClick={() => window.print()}
-            className="flex-1 h-9 bg-orange-500 hover:bg-orange-600"
+            className="flex-1 h-9 bg-primary hover:bg-primary/90"
             size="sm"
           >
             <Printer className="h-4 w-4 mr-1.5" />

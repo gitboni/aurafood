@@ -93,11 +93,11 @@ export default function TablesAdminPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       <header className="bg-white dark:bg-slate-900 border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <MapPin className="h-5 w-5 text-violet-500" />
+        <MapPin className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Mapa de Mesas</h1>
         <div className="flex-1" />
         <Link href="/floor"><Button variant="outline" size="sm"><Eye className="h-4 w-4 mr-1" /> Ver Salón</Button></Link>
-        <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
+        <Button className="bg-primary hover:bg-primary/90" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Nueva Mesa
         </Button>
         <ThemeToggle />
@@ -130,7 +130,7 @@ export default function TablesAdminPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {tables.map((t) => (
                   <div key={t.id} className={`flex items-center gap-3 p-3 rounded-lg border ${t.active ? "bg-white dark:bg-slate-900" : "bg-muted/40 opacity-60"}`}>
-                    <div className={`h-10 w-10 rounded-${t.shape === "round" ? "full" : "md"} bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center text-sm font-bold text-orange-600 dark:text-orange-300 shrink-0`}>
+                    <div className={`h-10 w-10 rounded-${t.shape === "round" ? "full" : "md"} bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0`}>
                       {t.name.replace(/[^0-9A-Za-z]/g, "").slice(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -201,7 +201,7 @@ export default function TablesAdminPage() {
                 <Input type="number" min="0" max={GRID_ROWS - 1} value={y} onChange={(e) => setY(parseInt(e.target.value) || 0)} />
               </div>
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={saveTable}>
+            <Button className="w-full bg-primary hover:bg-primary/90 text-white" onClick={saveTable}>
               {editing ? "Guardar Cambios" : "Crear Mesa"}
             </Button>
           </div>
@@ -247,7 +247,7 @@ function FloorGrid({
             draggable
             onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
             onDoubleClick={() => onEdit(t)}
-            className={`absolute ${rounded} bg-orange-500 text-white flex flex-col items-center justify-center text-xs font-bold cursor-move select-none shadow-md hover:shadow-lg hover:scale-105 transition-all`}
+            className={`absolute ${rounded} bg-primary text-primary-foreground flex flex-col items-center justify-center text-xs font-bold cursor-move select-none shadow-md hover:shadow-lg hover:scale-105 transition-all`}
             style={{ left: t.x * CELL + 2, top: t.y * CELL + 2, width: w, height: h }}
             title={`${t.name} · ${t.seats} pers · doble click para editar`}
           >

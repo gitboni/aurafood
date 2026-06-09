@@ -116,7 +116,7 @@ export default function CombosPage() {
         <Package2 className="h-5 w-5 text-pink-500" />
         <h1 className="text-xl font-bold">Combos / Paquetes</h1>
         <div className="flex-1" />
-        <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => openDialog()}>
+        <Button className="bg-primary hover:bg-primary/90" onClick={() => openDialog()}>
           <Plus className="h-4 w-4 mr-2" /> Nuevo Combo
         </Button>
         <ThemeToggle />
@@ -144,7 +144,7 @@ export default function CombosPage() {
                       {c.featured && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
                     </div>
                     {c.description && <p className="text-xs text-muted-foreground">{c.description}</p>}
-                    <p className="text-orange-600 font-bold text-lg mt-1">${c.price.toFixed(2)}</p>
+                    <p className="text-primary font-bold text-lg mt-1">${c.price.toFixed(2)}</p>
                   </div>
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleCombo(c)}>
@@ -213,7 +213,7 @@ export default function CombosPage() {
               <input type="checkbox" id="cfeat" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="rounded" />
               <Label htmlFor="cfeat">Combo destacado</Label>
             </div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={saveCombo}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={saveCombo}>
               {editing ? "Guardar Cambios" : "Crear Combo"}
             </Button>
           </div>

@@ -102,13 +102,13 @@ export default function SettingsPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 
   if (needsSetup) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
-      <Store className="h-12 w-12 text-orange-500" />
+      <Store className="h-12 w-12 text-primary" />
       <h2 className="text-xl font-bold">Configura la tabla de ajustes</h2>
       <p className="text-muted-foreground text-center max-w-md">
         Ejecuta <code className="bg-muted px-1 rounded">supabase-settings.sql</code> en
@@ -129,7 +129,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <Store className="h-5 w-5 text-orange-500" />
+        <Store className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Ajustes del Restaurante</h1>
         <div className="flex-1" />
         <Button variant="ghost" size="icon" onClick={async () => {
@@ -224,12 +224,12 @@ export default function SettingsPage() {
                   <Label>Modo de cálculo</Label>
                   <div className="flex gap-2 mt-1">
                     <Button type="button" variant={settings.tax_inclusive ? "default" : "outline"} size="sm"
-                      className={settings.tax_inclusive ? "bg-orange-500 hover:bg-orange-600" : ""}
+                      className={settings.tax_inclusive ? "bg-primary hover:bg-primary/90" : ""}
                       onClick={() => set("tax_inclusive", true)}>
                       Incluido en el precio
                     </Button>
                     <Button type="button" variant={!settings.tax_inclusive ? "default" : "outline"} size="sm"
-                      className={!settings.tax_inclusive ? "bg-orange-500 hover:bg-orange-600" : ""}
+                      className={!settings.tax_inclusive ? "bg-primary hover:bg-primary/90" : ""}
                       onClick={() => set("tax_inclusive", false)}>
                       Sumado por encima
                     </Button>
@@ -321,7 +321,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" size="lg" onClick={save} disabled={saving}>
+        <Button className="w-full bg-primary hover:bg-primary/90 text-white" size="lg" onClick={save} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           Guardar Ajustes
         </Button>
@@ -346,7 +346,7 @@ function Toggle({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${checked ? "bg-orange-500" : "bg-gray-300"}`}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted"}`}
       >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
       </button>

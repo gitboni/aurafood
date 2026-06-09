@@ -212,7 +212,7 @@ export default function ReportsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <BarChart3 className="h-5 w-5 text-rose-500" />
+        <BarChart3 className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Reportes</h1>
         <div className="flex-1" />
         <ThemeToggle />
@@ -243,7 +243,7 @@ export default function ReportsPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-[calc(100vh-73px)]">
-          <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center h-[calc(100vh-73px)] gap-4">
@@ -283,7 +283,7 @@ export default function ReportsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Ticket Promedio</CardTitle>
-                <TrendingUp className="h-4 w-4 text-orange-500" />
+                <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent><div className="text-2xl font-bold">${avgTicket.toFixed(2)}</div></CardContent>
             </Card>
@@ -309,7 +309,7 @@ export default function ReportsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-orange-500" />
+                    <TrendingUp className="h-4 w-4 text-primary" />
                     Ventas por Hora
                   </CardTitle>
                 </CardHeader>
