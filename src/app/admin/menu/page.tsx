@@ -20,6 +20,7 @@ import {
   Printer,
   ChevronDown,
   ChevronUp,
+  UtensilsCrossed,
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -322,7 +323,7 @@ export default function AdminMenuPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <AlertCircle className="h-10 w-10 text-destructive" />
         <p className="font-semibold">No se pudo cargar el menú</p>
         <Button onClick={() => { setError(false); setLoading(true); loadData(); }}>
@@ -333,15 +334,15 @@ export default function AdminMenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/">
           <Button variant="ghost" size="icon">
             <Home className="h-5 w-5" />
           </Button>
         </Link>
-        <LayoutDashboard className="h-5 w-5 text-blue-500" />
+        <LayoutDashboard className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Gestión de Menú</h1>
         <ThemeToggle />
         <div className="flex-1" />
@@ -387,30 +388,40 @@ export default function AdminMenuPage() {
                   <h3 className="font-semibold text-lg mb-2">{cat.name}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {catProds.map((p) => (
-                      <Card key={p.id} className={`${!p.available ? "opacity-50" : ""}`}>
-                        <CardContent className="flex items-center gap-3 p-4">
-                          {p.image_url && (
-                            <div className="relative h-14 w-14 bg-muted rounded-lg overflow-hidden shrink-0">
+                      <Card key={p.id} className={`transition-shadow hover:shadow-md ${!p.available ? "opacity-60" : ""}`}>
+                        <CardContent className="flex items-center gap-3 p-3">
+                          {/* Thumbnail — siempre presente para tarjetas uniformes */}
+                          <div className="relative h-16 w-16 bg-muted rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                            {p.image_url ? (
                               <Image
                                 src={p.image_url}
                                 alt={p.name}
                                 fill
                                 className="object-cover"
                               />
-                            </div>
-                          )}
+                            ) : (
+                              <UtensilsCrossed className="h-6 w-6 text-muted-foreground/40" />
+                            )}
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               <p className="font-medium truncate">{p.name}</p>
                               {p.featured && (
-                                <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                                <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500 shrink-0" />
+                              )}
+                              {!p.available && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Oculto</Badge>
                               )}
                             </div>
-                            <p className="text-primary font-bold">${p.price.toFixed(2)}</p>
+                            <p className="text-primary font-bold tabular-nums">${p.price.toFixed(2)}</p>
                             {p.track_stock && (
-                              <p className="text-xs text-muted-foreground">
+                              <span className={`inline-block mt-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md ${
+                                (p.stock ?? 0) <= 5
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
                                 Stock: {p.stock ?? "—"}
-                              </p>
+                              </span>
                             )}
                           </div>
                           <div className="flex gap-1">

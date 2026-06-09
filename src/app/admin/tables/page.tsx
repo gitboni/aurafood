@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { FloorTable } from "@/lib/types";
 import {
-  Home, LogOut, Plus, Pencil, Trash2, MapPin, Eye, EyeOff, X,
+  Home, LogOut, Plus, Pencil, Trash2, MapPin, Eye, EyeOff, X, Users,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,60 @@ import { toast } from "sonner";
 
 const GRID_COLS = 12;
 const GRID_ROWS = 8;
-const CELL = 56; // px per cell
+const CELL = 66; // px per cell
+const CHAIR = 11; // chair size px
+const MARGIN = 16; // band around table surface where chairs sit
+
+// Zone color coding — makes the floor plan readable at a glance
+const ZONES: Record<string, { label: string; surface: string; dot: string }> = {
+  main: { label: "Salón", surface: "bg-primary text-primary-foreground", dot: "bg-primary" },
+  terrace: { label: "Terraza", surface: "bg-emerald-500 text-white", dot: "bg-emerald-500" },
+  bar: { label: "Barra", surface: "bg-amber-500 text-white", dot: "bg-amber-500" },
+  vip: { label: "VIP", surface: "bg-violet-500 text-white", dot: "bg-violet-500" },
+};
+const zoneOf = (z: string) => ZONES[z] ?? ZONES.main;
+
+// How many chairs go on each side of a (non-round) table
+function seatLayout(seats: number, shape: FloorTable["shape"]) {
+  if (shape === "rect") {
+    const top = Math.ceil(seats / 2);
+    return { top, bottom: seats - top, left: 0, right: 0 };
+  }
+  const base = Math.floor(seats / 4);
+  const sides: Record<string, number> = { top: base, bottom: base, left: base, right: base };
+  const order = ["top", "bottom", "left", "right"];
+  for (let i = 0; i < seats % 4; i++) sides[order[i]]++;
+  return sides;
+}
+
+// Compute chair top-left positions inside a table footprint (W×H)
+function buildChairs(seats: number, shape: FloorTable["shape"], W: number, H: number) {
+  const chairs: { x: number; y: number }[] = [];
+  if (shape === "round") {
+    const cx = W / 2, cy = H / 2;
+    const r = Math.min(W, H) / 2 - CHAIR / 2 - 1;
+    for (let i = 0; i < seats; i++) {
+      const a = (i / seats) * Math.PI * 2 - Math.PI / 2;
+      chairs.push({ x: cx + r * Math.cos(a) - CHAIR / 2, y: cy + r * Math.sin(a) - CHAIR / 2 });
+    }
+    return chairs;
+  }
+  const sides = seatLayout(seats, shape);
+  const surfW = W - 2 * MARGIN, surfH = H - 2 * MARGIN;
+  const topY = Math.max(2, MARGIN - CHAIR - 2);
+  const add = (count: number, axis: "h" | "v", fixed: number) => {
+    for (let i = 0; i < count; i++) {
+      const t = (i + 1) / (count + 1);
+      if (axis === "h") chairs.push({ x: MARGIN + t * surfW - CHAIR / 2, y: fixed });
+      else chairs.push({ x: fixed, y: MARGIN + t * surfH - CHAIR / 2 });
+    }
+  };
+  add(sides.top, "h", topY);
+  add(sides.bottom, "h", H - MARGIN + 2);
+  add(sides.left, "v", topY);
+  add(sides.right, "v", W - MARGIN + 2);
+  return chairs;
+}
 
 export default function TablesAdminPage() {
   const [tables, setTables] = useState<FloorTable[]>([]);
@@ -90,8 +143,8 @@ export default function TablesAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-      <header className="bg-white dark:bg-slate-900 border-b px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <MapPin className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Mapa de Mesas</h1>
@@ -115,7 +168,18 @@ export default function TablesAdminPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <FloorGrid tables={tables.filter(t => t.active)} onMove={moveTable} onEdit={openDialog} />
+            {/* Zone legend */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4">
+              {Object.values(ZONES).map((z) => (
+                <span key={z.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={`h-3 w-3 rounded-sm ${z.dot}`} /> {z.label}
+                </span>
+              ))}
+              <span className="ml-auto text-xs text-muted-foreground">Doble clic en una mesa para editar</span>
+            </div>
+            <div className="overflow-x-auto">
+              <FloorGrid tables={tables.filter(t => t.active)} onMove={moveTable} onEdit={openDialog} />
+            </div>
           </CardContent>
         </Card>
 
@@ -129,13 +193,13 @@ export default function TablesAdminPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {tables.map((t) => (
-                  <div key={t.id} className={`flex items-center gap-3 p-3 rounded-lg border ${t.active ? "bg-white dark:bg-slate-900" : "bg-muted/40 opacity-60"}`}>
-                    <div className={`h-10 w-10 rounded-${t.shape === "round" ? "full" : "md"} bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0`}>
+                  <div key={t.id} className={`flex items-center gap-3 p-3 rounded-lg border ${t.active ? "bg-card" : "bg-muted/40 opacity-60"}`}>
+                    <div className={`h-10 w-10 rounded-${t.shape === "round" ? "full" : "md"} ${zoneOf(t.zone).surface} flex items-center justify-center text-sm font-bold shrink-0`}>
                       {t.name.replace(/[^0-9A-Za-z]/g, "").slice(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{t.name}</p>
-                      <p className="text-xs text-muted-foreground">{t.zone} · {t.seats} pers.</p>
+                      <p className="text-xs text-muted-foreground capitalize">{zoneOf(t.zone).label} · {t.seats} pers.</p>
                     </div>
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toggleTable(t)} title={t.active ? "Ocultar" : "Mostrar"}>
@@ -220,7 +284,7 @@ function FloorGrid({
 }) {
   return (
     <div
-      className="relative bg-gray-100 dark:bg-slate-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-700"
+      className="relative bg-muted/40 rounded-lg border-2 border-dashed border-border shrink-0"
       style={{
         width: GRID_COLS * CELL,
         height: GRID_ROWS * CELL,
@@ -238,21 +302,39 @@ function FloorGrid({
       }}
     >
       {tables.map((t) => {
-        const w = t.shape === "rect" ? CELL * 2 - 4 : CELL - 4;
-        const h = CELL - 4;
-        const rounded = t.shape === "round" ? "rounded-full" : "rounded-md";
+        const W = (t.shape === "rect" ? 2 : 1) * CELL;
+        const H = CELL;
+        const surfRounded = t.shape === "round" ? "rounded-full" : "rounded-xl";
+        const chairs = buildChairs(t.seats, t.shape, W, H);
+        const zone = zoneOf(t.zone);
         return (
           <div
             key={t.id}
             draggable
             onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
             onDoubleClick={() => onEdit(t)}
-            className={`absolute ${rounded} bg-primary text-primary-foreground flex flex-col items-center justify-center text-xs font-bold cursor-move select-none shadow-md hover:shadow-lg hover:scale-105 transition-all`}
-            style={{ left: t.x * CELL + 2, top: t.y * CELL + 2, width: w, height: h }}
-            title={`${t.name} · ${t.seats} pers · doble click para editar`}
+            className="absolute cursor-move select-none group transition-transform hover:scale-[1.04] hover:z-10"
+            style={{ left: t.x * CELL, top: t.y * CELL, width: W, height: H }}
+            title={`${t.name} · ${zone.label} · ${t.seats} personas · doble clic para editar`}
           >
-            <span className="leading-tight">{t.name}</span>
-            <span className="text-[9px] opacity-80">{t.seats}p</span>
+            {/* Chairs */}
+            {chairs.map((c, i) => (
+              <span
+                key={i}
+                className="absolute rounded-[3px] bg-foreground/25 dark:bg-foreground/30"
+                style={{ left: c.x, top: c.y, width: CHAIR, height: CHAIR }}
+              />
+            ))}
+            {/* Table surface */}
+            <div
+              className={`absolute ${surfRounded} ${zone.surface} flex flex-col items-center justify-center font-bold shadow-md ring-1 ring-black/10`}
+              style={{ left: MARGIN, top: MARGIN, width: W - 2 * MARGIN, height: H - 2 * MARGIN }}
+            >
+              <span className="leading-none text-[11px] px-1 text-center truncate max-w-full">{t.name}</span>
+              <span className="mt-0.5 flex items-center gap-0.5 text-[9px] font-medium opacity-90">
+                <Users className="h-2.5 w-2.5" /> {t.seats}
+              </span>
+            </div>
           </div>
         );
       })}

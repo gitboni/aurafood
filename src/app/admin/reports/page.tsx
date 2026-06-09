@@ -209,20 +209,20 @@ export default function ReportsPage() {
   const hasMore = orders.length < totalCount;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <BarChart3 className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Reportes</h1>
         <div className="flex-1" />
         <ThemeToggle />
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
           {(["day", "week", "month"] as const).map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-3 py-1 rounded-md text-sm font-medium ${
-                range === r ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                range === r ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {r === "day" ? "Día" : r === "week" ? "Semana" : "Mes"}
@@ -259,40 +259,40 @@ export default function ReportsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Ingresos</CardTitle>
-                <DollarSign className="h-4 w-4 text-green-500" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><DollarSign className="h-4 w-4" /></span>
               </CardHeader>
-              <CardContent><div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div></CardContent>
+              <CardContent><div className="text-2xl font-bold tabular-nums">${totalRevenue.toFixed(2)}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Ganancia</CardTitle>
-                <Percent className="h-4 w-4 text-emerald-500" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><Percent className="h-4 w-4" /></span>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-emerald-600">${grossProfit.toFixed(2)}</div>
+                <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">${grossProfit.toFixed(2)}</div>
                 <p className="text-xs text-muted-foreground">{marginPct.toFixed(0)}% margen · costo ${totalCost.toFixed(2)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Completadas</CardTitle>
-                <ShoppingBag className="h-4 w-4 text-blue-500" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground"><ShoppingBag className="h-4 w-4" /></span>
               </CardHeader>
-              <CardContent><div className="text-2xl font-bold">{delivered.length}</div></CardContent>
+              <CardContent><div className="text-2xl font-bold tabular-nums">{delivered.length}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Ticket Promedio</CardTitle>
-                <TrendingUp className="h-4 w-4 text-primary" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground"><TrendingUp className="h-4 w-4" /></span>
               </CardHeader>
-              <CardContent><div className="text-2xl font-bold">${avgTicket.toFixed(2)}</div></CardContent>
+              <CardContent><div className="text-2xl font-bold tabular-nums">${avgTicket.toFixed(2)}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Órdenes</CardTitle>
-                <Clock className="h-4 w-4 text-purple-500" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Clock className="h-4 w-4" /></span>
               </CardHeader>
-              <CardContent><div className="text-2xl font-bold">{totalCount}</div></CardContent>
+              <CardContent><div className="text-2xl font-bold tabular-nums">{totalCount}</div></CardContent>
             </Card>
           </div>
 

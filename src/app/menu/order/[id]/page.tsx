@@ -123,7 +123,7 @@ export default function OrderTrackingPage() {
   if (loading) {
     return (
       <main className="flex-1 flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </main>
     );
   }
@@ -134,7 +134,7 @@ export default function OrderTrackingPage() {
         <div className="text-center space-y-4">
           <p className="text-xl font-semibold">Pedido no encontrado</p>
           <Link href="/menu">
-            <Button className="bg-orange-500 hover:bg-orange-600">Volver al menú</Button>
+            <Button className="bg-primary hover:bg-primary/90">Volver al menú</Button>
           </Link>
         </div>
       </main>
@@ -176,8 +176,8 @@ export default function OrderTrackingPage() {
         {showEta && (
           <Card className="bg-white/70 dark:bg-slate-900/70 backdrop-blur border-orange-200 dark:border-slate-700">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center shrink-0">
-                <Timer className="h-5 w-5 text-orange-600" />
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Timer className="h-5 w-5 text-primary" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Tiempo estimado</p>
@@ -203,10 +203,10 @@ export default function OrderTrackingPage() {
               <div key={step} className="flex flex-col items-center gap-1">
                 <div
                   className={`h-3 w-3 rounded-full ${
-                    isActive ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"
+                    isActive ? "bg-primary" : "bg-muted"
                   }`}
                 />
-                <span className={`text-xs ${isActive ? "text-orange-600 font-medium" : "text-muted-foreground"}`}>
+                <span className={`text-xs ${isActive ? "text-primary font-medium" : "text-muted-foreground"}`}>
                   {step === "pending" && "Recibido"}
                   {step === "preparing" && "Preparando"}
                   {step === "ready" && "Listo"}
@@ -224,7 +224,7 @@ export default function OrderTrackingPage() {
             {order.order_items?.map((item) => (
               <div key={item.id} className="flex justify-between text-sm">
                 <span>
-                  <span className="font-medium text-orange-600">{item.quantity}x</span>{" "}
+                  <span className="font-medium text-primary">{item.quantity}x</span>{" "}
                   {item.product_name}
                 </span>
                 <span className="font-medium">${item.subtotal.toFixed(2)}</span>
@@ -232,7 +232,7 @@ export default function OrderTrackingPage() {
             ))}
             <div className="border-t pt-2 flex justify-between font-bold">
               <span>Total</span>
-              <span className="text-orange-600">${Number(order.total).toFixed(2)}</span>
+              <span className="text-primary">${Number(order.total).toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
