@@ -265,7 +265,7 @@ export default function InventoryPage() {
   );
 
   if (needsSetup) return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background">
       <Package className="h-12 w-12 text-emerald-500" />
       <h2 className="text-xl font-bold">Configura las tablas de inventario</h2>
       <p className="text-muted-foreground text-center max-w-md">
@@ -288,9 +288,9 @@ export default function InventoryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <Package className="h-5 w-5 text-emerald-600" />
         <h1 className="text-xl font-bold">Inventario</h1>
@@ -425,7 +425,7 @@ export default function InventoryPage() {
               {movements.map((m) => {
                 const isPositive = m.quantity > 0;
                 return (
-                  <div key={m.id} className="flex items-center gap-3 p-3 bg-white border rounded-lg">
+                  <div key={m.id} className="flex items-center gap-3 p-3 bg-card border rounded-lg">
                     <div className={`shrink-0 ${isPositive ? "text-green-600" : "text-red-500"}`}>
                       {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                     </div>

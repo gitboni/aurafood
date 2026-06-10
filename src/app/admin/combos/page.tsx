@@ -110,8 +110,8 @@ export default function CombosPage() {
   const savings = regularTotal - (parseFloat(price) || 0);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <Package2 className="h-5 w-5 text-pink-500" />
         <h1 className="text-xl font-bold">Combos / Paquetes</h1>

@@ -107,7 +107,7 @@ export default function SettingsPage() {
   );
 
   if (needsSetup) return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-gray-50">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background">
       <Store className="h-12 w-12 text-primary" />
       <h2 className="text-xl font-bold">Configura la tabla de ajustes</h2>
       <p className="text-muted-foreground text-center max-w-md">
@@ -126,8 +126,8 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <Store className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Ajustes del Restaurante</h1>

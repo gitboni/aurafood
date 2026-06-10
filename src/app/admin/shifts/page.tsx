@@ -175,11 +175,11 @@ export default function ShiftsPage() {
   const closingVal = parseFloat(closingCash);
   const diff = !isNaN(closingVal) ? closingVal - expected : null;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Clock className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Clock className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
         <Clock className="h-5 w-5 text-amber-500" />
         <h1 className="text-xl font-bold">Corte de Caja</h1>

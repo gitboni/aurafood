@@ -38,8 +38,8 @@ const STATUS_MAP = {
     label: "Entregado",
     description: "¡Gracias por tu compra!",
     icon: PackageCheck,
-    color: "text-gray-500",
-    bg: "bg-gray-50 dark:bg-gray-900",
+    color: "text-muted-foreground",
+    bg: "bg-muted",
     pulse: false,
   },
   cancelled: {
