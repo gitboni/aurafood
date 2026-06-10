@@ -51,7 +51,48 @@ CREATE INDEX IF NOT EXISTS idx_restaurants_owner ON public.restaurants (owner_id
 
 
 -- ────────────────────────────────────────────────────────────
--- SECCIÓN 2 · HELPERS (current_restaurant_id, is_super_admin)
+-- SECCIÓN 2 · `profiles` extendido (restaurant_id + super_admin)
+--
+-- ⚠️ DEBE IR ANTES de los helpers porque current_restaurant_id()
+-- y is_admin() referencian profiles.restaurant_id. PostgreSQL
+-- valida el cuerpo de la función AL CREARLA → si la columna no
+-- existe, falla con "42703: column restaurant_id does not exist".
+-- ────────────────────────────────────────────────────────────
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS restaurant_id uuid REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+-- Permitir rol super_admin (relajar el CHECK existente)
+DO $$
+DECLARE v_conname text;
+BEGIN
+  SELECT conname INTO v_conname
+  FROM pg_constraint
+  WHERE conrelid = 'public.profiles'::regclass
+    AND contype = 'c'
+    AND conname LIKE '%role%';
+  IF v_conname IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE public.profiles DROP CONSTRAINT %I', v_conname);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.profiles'::regclass AND conname = 'profiles_role_check'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_role_check
+      CHECK (role IN ('super_admin','admin','cashier','kitchen'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_profiles_restaurant ON public.profiles (restaurant_id);
+
+
+-- ────────────────────────────────────────────────────────────
+-- SECCIÓN 3 · HELPERS (current_restaurant_id, is_super_admin, is_admin)
 -- ────────────────────────────────────────────────────────────
 
 -- Lee el restaurant_id desde el profile del usuario.
@@ -89,32 +130,6 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
       )
   );
 $$;
-
-
--- ────────────────────────────────────────────────────────────
--- SECCIÓN 3 · `profiles` extendido (restaurant_id + super_admin)
--- ────────────────────────────────────────────────────────────
-
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS restaurant_id uuid REFERENCES public.restaurants(id) ON DELETE CASCADE;
-
--- Permitir rol super_admin (relajar el CHECK existente)
-DO $$
-DECLARE conname text;
-BEGIN
-  SELECT conname INTO conname
-  FROM pg_constraint
-  WHERE conrelid = 'public.profiles'::regclass AND contype = 'c' AND conname LIKE '%role%';
-  IF conname IS NOT NULL THEN
-    EXECUTE format('ALTER TABLE public.profiles DROP CONSTRAINT %I', conname);
-  END IF;
-END $$;
-
-ALTER TABLE public.profiles
-  ADD CONSTRAINT profiles_role_check
-  CHECK (role IN ('super_admin','admin','cashier','kitchen'));
-
-CREATE INDEX IF NOT EXISTS idx_profiles_restaurant ON public.profiles (restaurant_id);
 
 
 -- ────────────────────────────────────────────────────────────
