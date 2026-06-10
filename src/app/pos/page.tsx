@@ -40,6 +40,7 @@ import { queueOrder, flushQueue, queuedCount, onQueueChange } from "@/lib/offlin
 import { WifiOff, CloudUpload } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useTenantId } from "@/lib/tenant-client";
 
 type Tab = "sell" | "orders";
 
@@ -108,14 +109,35 @@ export default function POSPage() {
 
   const { items, addItem, updateQuantity, clearCart, total, count } = useCartStore();
   const supabase = createClient();
+  const { tenantId, error: tenantError, resolving: tenantResolving } = useTenantId();
+
+  // Si el hook falla resolviendo el tenant, mostrar error claro
+  useEffect(() => {
+    if (tenantError) {
+      setErrorProducts(true);
+      setLoadingProducts(false);
+    }
+  }, [tenantError]);
+  // Espera defensiva: si tras 5s el tenant sigue sin resolver, error
+  useEffect(() => {
+    if (!tenantResolving) return;
+    const id = setTimeout(() => {
+      if (tenantResolving) {
+        setErrorProducts(true);
+        setLoadingProducts(false);
+      }
+    }, 5000);
+    return () => clearTimeout(id);
+  }, [tenantResolving]);
 
   // ── Load products ───────────────────────────────────────────
   useEffect(() => {
+    if (!tenantId) return;
     async function load() {
       try {
         const [catRes, prodRes] = await Promise.all([
-          supabase.from("categories").select("*").eq("active", true).order("sort_order"),
-          supabase.from("products").select("*").eq("available", true).order("sort_order"),
+          supabase.from("categories").select("*").eq("restaurant_id", tenantId).eq("active", true).order("sort_order"),
+          supabase.from("products").select("*").eq("restaurant_id", tenantId).eq("available", true).order("sort_order"),
         ]);
         if (catRes.error) throw catRes.error;
         if (prodRes.error) throw prodRes.error;
@@ -132,13 +154,15 @@ export default function POSPage() {
     }
     load();
     loadModifiers();
-  }, []);
+  }, [tenantId]);
 
   // ── Load modifier groups mapped per product ────────────────
   async function loadModifiers() {
+    if (!tenantId) return;
     const { data, error } = await supabase
       .from("product_modifier_groups")
-      .select("product_id, modifier_groups(*, modifiers(*))");
+      .select("product_id, modifier_groups(*, modifiers(*))")
+      .eq("restaurant_id", tenantId);
     if (error || !data) return;
     const map: Record<string, ModifierGroup[]> = {};
     for (const row of data as unknown as { product_id: string; modifier_groups: ModifierGroup | null }[]) {
@@ -182,10 +206,12 @@ export default function POSPage() {
 
   // ── Load current open shift ─────────────────────────────────
   useEffect(() => {
+    if (!tenantId) return;
     async function loadShift() {
       const { data } = await supabase
         .from("shifts")
         .select("id")
+        .eq("restaurant_id", tenantId)
         .eq("status", "open")
         .order("opened_at", { ascending: false })
         .limit(1)
@@ -198,7 +224,7 @@ export default function POSPage() {
       const { data } = await supabase
         .from("settings")
         .select("tax_enabled, tax_rate, tax_inclusive, auto_print_kitchen, loyalty_enabled, loyalty_points_per_currency")
-        .eq("id", 1)
+        .eq("restaurant_id", tenantId)
         .maybeSingle();
       if (data) {
         setTaxCfg({
@@ -214,7 +240,7 @@ export default function POSPage() {
       }
     }
     loadTaxCfg();
-  }, []);
+  }, [tenantId]);
 
   // ── Always-on alert for incoming QR orders (any tab) ───────
   useEffect(() => {
@@ -284,11 +310,13 @@ export default function POSPage() {
 
   // ── Load QR orders when tab is active ──────────────────────
   async function loadQROrders() {
+    if (!tenantId) return;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const { data } = await supabase
       .from("orders")
       .select("*, order_items(*)")
+      .eq("restaurant_id", tenantId)
       .eq("source", "qr")
       .gte("created_at", today.toISOString())
       .order("created_at", { ascending: false });
@@ -304,6 +332,7 @@ export default function POSPage() {
       }
       return;
     }
+    if (!tenantId) return;
     setQrLoading(true);
     loadQROrders();
 
@@ -319,7 +348,7 @@ export default function POSPage() {
       supabase.removeChannel(ch);
       qrChannelRef.current = null;
     };
-  }, [activeTab]);
+  }, [activeTab, tenantId]);
 
   // ── Sell helpers ────────────────────────────────────────────
   const subtotal = total();
@@ -415,12 +444,14 @@ export default function POSPage() {
       shift_id: currentShiftId,
       notes: notes || null,
       source: "pos",
+      restaurant_id: tenantId,
     };
     const baseItems = items.map((i) => {
       const unit = lineUnitPrice(i);
       const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
       const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
       return {
+        restaurant_id: tenantId,
         product_id: i.product.id,
         product_name: i.product.name,
         quantity: i.quantity,
