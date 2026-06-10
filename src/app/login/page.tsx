@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { LogIn, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
@@ -107,6 +108,12 @@ export default function LoginPage() {
               {loading ? "Ingresando..." : "Iniciar Sesión"}
             </Button>
           </form>
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            ¿No tienes restaurante?{" "}
+            <Link href="/signup" className="text-primary hover:underline">
+              Créalo gratis
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </main>

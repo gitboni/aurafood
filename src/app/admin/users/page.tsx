@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { useTenantId } from "@/lib/tenant-client";
+import { createStaffUser } from "./actions";
 
 const ROLE_LABELS: Record<UserRole, string> = { admin: "Administrador", cashier: "Cajero", kitchen: "Cocina" };
 const ROLE_COLORS: Record<UserRole, string> = { admin: "bg-blue-100 text-blue-800", cashier: "bg-orange-100 text-orange-800", kitchen: "bg-green-100 text-green-800" };
@@ -57,25 +58,15 @@ export default function UsersPage() {
     if (!tenantId) { toast.error("No se pudo identificar el restaurante"); return; }
     setCreating(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: name } },
-    });
+    // Server action con service role → NO reemplaza tu sesión de admin
+    // (antes el signUp del cliente te deslogueaba al crear un usuario).
+    const res = await createStaffUser(email, password, name, role);
+    setCreating(false);
 
-    if (error) { toast.error(error.message); setCreating(false); return; }
-
-    if (data.user) {
-      // Asignar rol + display_name + RESTAURANT_ID al nuevo perfil
-      await supabase
-        .from("profiles")
-        .update({ role, display_name: name, restaurant_id: tenantId })
-        .eq("id", data.user.id);
-    }
+    if (!res.ok) { toast.error(res.error); return; }
 
     toast.success(`Usuario ${name} creado como ${ROLE_LABELS[role]}`);
     setName(""); setEmail(""); setPassword(""); setRole("cashier");
-    setCreating(false);
     loadProfiles();
   }
 
