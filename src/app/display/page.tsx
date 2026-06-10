@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Order } from "@/lib/types";
 import { getSettings } from "@/lib/settings";
 import { ChefHat, CheckCircle2, Clock } from "lucide-react";
+import { useTenantId } from "@/lib/tenant-client";
 
 // Public display: pickup screen for customers. No login required.
 export default function DisplayPage() {
@@ -13,12 +14,15 @@ export default function DisplayPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
+    if (!tenantId) return;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const { data } = await supabase
       .from("orders")
       .select("id, order_number, status, customer_name, customer_table, created_at, updated_at")
+      .eq("restaurant_id", tenantId)
       .in("status", ["preparing", "ready"])
       .gte("created_at", today.toISOString())
       .order("created_at", { ascending: true });
@@ -26,18 +30,29 @@ export default function DisplayPage() {
   }
 
   useEffect(() => {
-    getSettings().then((s) => {
+    if (!tenantId) return;
+    getSettings(tenantId).then((s) => {
       setRestaurantName(s.restaurant_name);
       if (s.logo_url) setLogoUrl(s.logo_url);
     });
     load();
     const ch = supabase
-      .channel("display-orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .channel(`display-orders-${tenantId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `restaurant_id=eq.${tenantId}`,
+        },
+        () => load()
+      )
       .subscribe();
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => { supabase.removeChannel(ch); clearInterval(tick); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   const preparing = orders.filter((o) => o.status === "preparing");
   const ready = orders.filter((o) => o.status === "ready");

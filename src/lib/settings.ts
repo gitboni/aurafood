@@ -25,23 +25,42 @@ const DEFAULT: Settings = {
   updated_at: new Date(0).toISOString(),
 };
 
-let cache: Settings | null = null;
-let pending: Promise<Settings> | null = null;
+// Cache por tenant_id. Si no hay tenant_id se cachea como "global"
+// (legacy compat — para el-buen-comer al cargar URLs viejas).
+const cache = new Map<string, Settings>();
+const pending = new Map<string, Promise<Settings>>();
 
-export async function getSettings(): Promise<Settings> {
-  if (cache) return cache;
-  if (pending) return pending;
+/**
+ * Lee settings del tenant.
+ * - Si pasas tenantId → eq("restaurant_id", tenantId)
+ * - Si no, fallback al row con id=1 (compat con tenant inicial
+ *   antes de F1, no debería ocurrir post-migración pero mantiene
+ *   el contrato de la API).
+ */
+export async function getSettings(tenantId?: string): Promise<Settings> {
+  const key = tenantId ?? "_legacy";
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const inFlight = pending.get(key);
+  if (inFlight) return inFlight;
+
   const supabase = createClient();
-  pending = (async () => {
-    const { data, error } = await supabase.from("settings").select("*").eq("id", 1).maybeSingle();
+  const p = (async () => {
+    const q = supabase.from("settings").select("*");
+    const filtered = tenantId
+      ? q.eq("restaurant_id", tenantId)
+      : q.eq("id", 1);
+    const { data, error } = await filtered.maybeSingle();
     const value = error || !data ? DEFAULT : { ...DEFAULT, ...data };
-    cache = value;
-    pending = null;
+    cache.set(key, value);
+    pending.delete(key);
     return value;
   })();
-  return pending;
+  pending.set(key, p);
+  return p;
 }
 
 export function clearSettingsCache() {
-  cache = null;
+  cache.clear();
+  pending.clear();
 }

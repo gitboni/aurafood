@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useTenantId } from "@/lib/tenant-client";
 
 const GRID_COLS = 12;
 const GRID_ROWS = 8;
@@ -37,12 +38,15 @@ export default function FloorPage() {
 
   const supabase = createClient();
   const router = useRouter();
+  const { tenantId } = useTenantId();
 
   async function load() {
+    if (!tenantId) return;
     const [tRes, oRes] = await Promise.all([
-      supabase.from("floor_tables").select("*").eq("active", true).order("sort_order"),
+      supabase.from("floor_tables").select("*").eq("restaurant_id", tenantId).eq("active", true).order("sort_order"),
       supabase.from("orders")
         .select("id, order_number, customer_table, status, created_at, total")
+        .eq("restaurant_id", tenantId)
         .in("status", ["pending", "preparing", "ready"])
         .gte("created_at", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
         .order("created_at", { ascending: true }),
@@ -53,13 +57,24 @@ export default function FloorPage() {
   }
 
   useEffect(() => {
+    if (!tenantId) return;
     load();
     const channel = supabase
-      .channel("floor-orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .channel(`floor-orders-${tenantId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `restaurant_id=eq.${tenantId}`,
+        },
+        () => load()
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function statusFor(table: FloorTable): { status: TableStatus; activeOrders: Order[] } {
     const tableOrders = orders.filter((o) => o.customer_table === table.name);
