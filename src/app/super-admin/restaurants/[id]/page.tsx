@@ -10,9 +10,11 @@ import {
   ShoppingBag,
   Package,
   Users,
+  UserPlus,
 } from "lucide-react";
 import { PlanBadge, StatusBadge } from "../../badges";
 import { RestaurantActions } from "./restaurant-actions";
+import { InviteAdmin } from "./invite-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +37,7 @@ export default async function RestaurantDetail({
   if (!r) notFound();
 
   // Métricas del tenant — usamos count para no traer filas reales
-  const [products, orders, customers] = await Promise.all([
+  const [products, orders, customers, admins] = await Promise.all([
     supabase
       .from("products")
       .select("id", { count: "exact", head: true })
@@ -48,6 +50,11 @@ export default async function RestaurantDetail({
       .from("customers")
       .select("id", { count: "exact", head: true })
       .eq("restaurant_id", r.id),
+    supabase
+      .from("profiles")
+      .select("id, display_name, role")
+      .eq("restaurant_id", r.id)
+      .eq("role", "admin"),
   ]);
 
   const trialDaysLeft = r.trial_ends_at
@@ -155,6 +162,21 @@ export default async function RestaurantDetail({
             currentPlan={r.plan}
             currentStatus={r.status}
           />
+        </CardContent>
+      </Card>
+
+      {/* Invitar admin del tenant */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-primary" /> Admin del restaurante
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Crea la cuenta del dueño para que opere su restaurante sin necesidad de impersonar.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <InviteAdmin restaurantId={r.id} existing={admins.data ?? []} />
         </CardContent>
       </Card>
 

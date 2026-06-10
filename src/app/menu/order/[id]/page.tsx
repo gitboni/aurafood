@@ -67,16 +67,23 @@ export default function OrderTrackingPage() {
       .eq("id", params.id)
       .single();
 
-    if (data) setOrder(data);
+    if (data) {
+      setOrder(data);
+      // El ETA se calcula con las órdenes del MISMO restaurante.
+      // El cliente anon no conoce el tenant de antemano, lo sacamos
+      // de su propia orden (que sí puede leer por el UUID del link).
+      if (data.restaurant_id) loadAvgPrep(data.restaurant_id);
+    }
     setLoading(false);
   }
 
-  // Average prep time from the last 20 delivered orders
-  async function loadAvgPrep() {
+  // Average prep time from the last 20 delivered orders (de este restaurante)
+  async function loadAvgPrep(restaurantId: string) {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data } = await supabase
       .from("orders")
       .select("created_at, updated_at")
+      .eq("restaurant_id", restaurantId)
       .eq("status", "delivered")
       .gte("created_at", since)
       .order("created_at", { ascending: false })
@@ -91,10 +98,10 @@ export default function OrderTrackingPage() {
 
   useEffect(() => {
     loadOrder();
-    loadAvgPrep();
     // Re-render every 30s to update remaining ETA
     const t = setInterval(() => setTick((n) => n + 1), 30000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -122,7 +129,7 @@ export default function OrderTrackingPage() {
 
   if (loading) {
     return (
-      <main className="flex-1 flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+      <main className="flex-1 flex items-center justify-center min-h-screen bg-gradient-to-br from-primary/5 to-gold/5">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </main>
     );
