@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { useTenantId } from "@/lib/tenant-client";
+import { clearSettingsCache } from "@/lib/settings";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -22,9 +24,15 @@ export default function SettingsPage() {
   const [uploadingFav, setUploadingFav] = useState(false);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
-    const { data, error } = await supabase.from("settings").select("*").eq("id", 1).maybeSingle();
+    if (!tenantId) return;
+    const { data, error } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("restaurant_id", tenantId)
+      .maybeSingle();
     if (error?.code === "42P01") { setNeedsSetup(true); setLoading(false); return; }
     setSettings(
       data ?? {
@@ -39,7 +47,10 @@ export default function SettingsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (tenantId) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function set<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((s) => (s ? { ...s, [key]: value } : s));
@@ -72,10 +83,12 @@ export default function SettingsPage() {
   }
 
   async function save() {
-    if (!settings) return;
+    if (!settings || !tenantId) return;
     setSaving(true);
+    // Upsert por restaurant_id (no por id=1 que es legacy).
+    // Si el row no existe (tenant nuevo), lo crea.
     const { error } = await supabase.from("settings").upsert({
-      id: 1,
+      restaurant_id: tenantId,
       restaurant_name: settings.restaurant_name,
       logo_url: settings.logo_url,
       favicon_url: settings.favicon_url,
@@ -94,9 +107,10 @@ export default function SettingsPage() {
       loyalty_points_per_currency: settings.loyalty_points_per_currency,
       manager_pin: settings.manager_pin,
       updated_at: new Date().toISOString(),
-    });
+    }, { onConflict: "restaurant_id" });
     setSaving(false);
     if (error) { toast.error("Error al guardar"); return; }
+    clearSettingsCache(); // invalidar cache de useTenantId/getSettings
     toast.success("Ajustes guardados");
   }
 

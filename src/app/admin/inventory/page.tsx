@@ -21,6 +21,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useTenantId } from "@/lib/tenant-client";
 
 const UNITS = ["g", "kg", "mL", "L", "pza", "porción", "caja", "lata", "bolsa"];
 
@@ -81,6 +82,7 @@ export default function InventoryPage() {
   const [savingPurchase, setSavingPurchase] = useState(false);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   // Request browser notification permission on mount
   useEffect(() => {
@@ -92,11 +94,17 @@ export default function InventoryPage() {
 
   // Realtime: listen for ingredient stock updates
   useEffect(() => {
+    if (!tenantId) return;
     const channel = supabase
-      .channel("inventory-ingredients")
+      .channel(`inventory-ingredients-${tenantId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "ingredients" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "ingredients",
+          filter: `restaurant_id=eq.${tenantId}`,
+        },
         (payload) => {
           const updated = payload.new as Ingredient;
           setIngredients((prev) =>
@@ -120,15 +128,18 @@ export default function InventoryPage() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   async function loadData() {
+    if (!tenantId) return;
     try {
       const [ingRes, movRes] = await Promise.all([
-        supabase.from("ingredients").select("*").order("name"),
+        supabase.from("ingredients").select("*").eq("restaurant_id", tenantId).order("name"),
         supabase
           .from("stock_movements")
           .select("*, ingredient:ingredients(name, unit)")
+          .eq("restaurant_id", tenantId)
           .order("created_at", { ascending: false })
           .limit(100),
       ]);
@@ -147,7 +158,10 @@ export default function InventoryPage() {
     }
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (tenantId) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function openDialog(ing?: Ingredient) {
     if (ing) {
@@ -165,7 +179,7 @@ export default function InventoryPage() {
   }
 
   async function saveIngredient() {
-    if (!name.trim()) return;
+    if (!name.trim() || !tenantId) return;
     const data = {
       name,
       unit,
@@ -174,11 +188,17 @@ export default function InventoryPage() {
       cost_per_unit: parseFloat(costPerUnit) || 0,
     };
     if (editing) {
-      const { error } = await supabase.from("ingredients").update(data).eq("id", editing.id);
+      const { error } = await supabase
+        .from("ingredients")
+        .update(data)
+        .eq("id", editing.id)
+        .eq("restaurant_id", tenantId);
       if (error) { toast.error("Error al actualizar"); return; }
       toast.success("Ingrediente actualizado");
     } else {
-      const { error } = await supabase.from("ingredients").insert(data);
+      const { error } = await supabase
+        .from("ingredients")
+        .insert({ ...data, restaurant_id: tenantId });
       if (error) { toast.error("Error al crear"); return; }
       toast.success("Ingrediente creado");
     }
@@ -206,6 +226,7 @@ export default function InventoryPage() {
       finalNotes = `[${reasonLabel}]${finalNotes ? " " + finalNotes : ""}`;
     }
     const movement = {
+      restaurant_id: tenantId,
       ingredient_id: adjustTarget.id,
       type: adjustType,
       quantity: isAddition ? qty : -Math.abs(qty),
@@ -250,6 +271,7 @@ export default function InventoryPage() {
         const ing = ingredients.find((i) => i.id === row.ingredient_id);
         if (!ing) continue;
         await supabase.from("stock_movements").insert({
+          restaurant_id: tenantId,
           ingredient_id: row.ingredient_id,
           type: "purchase",
           quantity: qty,

@@ -48,6 +48,7 @@ import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useTenantId } from "@/lib/tenant-client";
 
 export default function AdminMenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -87,6 +88,7 @@ export default function AdminMenuPage() {
   const [recipeQty, setRecipeQty] = useState("");
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function uploadImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -106,11 +108,12 @@ export default function AdminMenuPage() {
   }
 
   async function loadData() {
+    if (!tenantId) return;
     try {
       const [catRes, prodRes, ingRes] = await Promise.all([
-        supabase.from("categories").select("*").order("sort_order"),
-        supabase.from("products").select("*").order("sort_order"),
-        supabase.from("ingredients").select("*").order("name"),
+        supabase.from("categories").select("*").eq("restaurant_id", tenantId).order("sort_order"),
+        supabase.from("products").select("*").eq("restaurant_id", tenantId).order("sort_order"),
+        supabase.from("ingredients").select("*").eq("restaurant_id", tenantId).order("name"),
       ]);
       if (catRes.error) throw catRes.error;
       if (prodRes.error) throw prodRes.error;
@@ -165,6 +168,7 @@ export default function AdminMenuPage() {
       error = res.error;
     } else {
       const res = await supabase.from("product_recipes").insert({
+        restaurant_id: tenantId,
         product_id: editingProd.id,
         ingredient_id: recipeIngId,
         quantity: qty,
@@ -189,8 +193,9 @@ export default function AdminMenuPage() {
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (tenantId) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   // Category CRUD
   function openCatDialog(cat?: Category) {
@@ -207,17 +212,23 @@ export default function AdminMenuPage() {
   }
 
   async function saveCat() {
-    if (!catName.trim()) return;
+    if (!catName.trim() || !tenantId) return;
     if (editingCat) {
       await supabase
         .from("categories")
         .update({ name: catName, description: catDesc || null })
-        .eq("id", editingCat.id);
+        .eq("id", editingCat.id)
+        .eq("restaurant_id", tenantId);
       toast.success("Categoría actualizada");
     } else {
       await supabase
         .from("categories")
-        .insert({ name: catName, description: catDesc || null, sort_order: categories.length });
+        .insert({
+          restaurant_id: tenantId,
+          name: catName,
+          description: catDesc || null,
+          sort_order: categories.length,
+        });
       toast.success("Categoría creada");
     }
     setShowCatDialog(false);
@@ -273,7 +284,7 @@ export default function AdminMenuPage() {
   }
 
   async function saveProd() {
-    if (!prodName.trim() || !prodPrice || !prodCategory) return;
+    if (!prodName.trim() || !prodPrice || !prodCategory || !tenantId) return;
     const data = {
       name: prodName,
       description: prodDesc || null,
@@ -286,12 +297,16 @@ export default function AdminMenuPage() {
       stock: prodTrackStock && prodStock ? parseInt(prodStock, 10) : null,
     };
     if (editingProd) {
-      await supabase.from("products").update(data).eq("id", editingProd.id);
+      await supabase
+        .from("products")
+        .update(data)
+        .eq("id", editingProd.id)
+        .eq("restaurant_id", tenantId);
       toast.success("Producto actualizado");
     } else {
       await supabase
         .from("products")
-        .insert({ ...data, sort_order: products.length });
+        .insert({ ...data, restaurant_id: tenantId, sort_order: products.length });
       toast.success("Producto creado");
     }
     setShowProdDialog(false);
@@ -310,8 +325,21 @@ export default function AdminMenuPage() {
     loadData();
   }
 
+  // QR del menú: usar la URL con slug si conocemos el slug del path o cookie.
+  // Si no, cae al /menu legacy (sigue funcionando para el-buen-comer).
+  const slugForQr = (() => {
+    if (typeof window === "undefined") return null;
+    const m = window.location.pathname.match(
+      /^\/r\/([a-z0-9][a-z0-9-]*[a-z0-9])(?:\/|$)/
+    );
+    if (m) return m[1];
+    const c = document.cookie.match(/(?:^| )tenant_slug=([^;]+)/);
+    return c ? decodeURIComponent(c[1]) : null;
+  })();
   const menuUrl =
-    typeof window !== "undefined" ? `${window.location.origin}/menu` : "";
+    typeof window !== "undefined"
+      ? `${window.location.origin}${slugForQr ? `/r/${slugForQr}/menu` : "/menu"}`
+      : "";
 
   if (loading) {
     return (
