@@ -27,9 +27,11 @@ import {
   ShieldOff,
   ShieldCheck,
   Loader2,
+  UserCog,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PlanBadge, StatusBadge } from "../badges";
+import { impersonateTenant } from "./actions";
 
 type Restaurant = {
   id: string;
@@ -190,6 +192,21 @@ export function RestaurantsTable({ initial }: { initial: Restaurant[] }) {
                         <ExternalLink className="h-3.5 w-3.5" />
                       </Button>
                     </Link>
+                    <form
+                      action={async () => {
+                        await impersonateTenant(r.id, r.slug);
+                      }}
+                    >
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        type="submit"
+                        className="h-8 w-8 text-primary hover:bg-primary/10"
+                        title={`Entrar como admin de ${r.name}`}
+                      >
+                        <UserCog className="h-3.5 w-3.5" />
+                      </Button>
+                    </form>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -279,12 +296,33 @@ function CreateDialog({
       })
       .select()
       .single();
-    setSaving(false);
     if (error) {
+      setSaving(false);
       toast.error(error.message);
       return;
     }
-    toast.success(`${data.name} creado`);
+    // ── Seed mínimo del nuevo tenant ──────────────────────────
+    // El menú / POS / admin esperan un row de `settings`. Sin esto
+    // el tenant queda "muerto" al cargar — el código consulta
+    // settings.eq("id", 1) o similar y no encuentra nada.
+    // Pasamos restaurant_id explícito para que el trigger
+    // auto_fill_restaurant_id NO lo sobrescriba con el del super_admin.
+    const { error: settingsError } = await supabase
+      .from("settings")
+      .insert({
+        restaurant_id: data.id,
+        restaurant_name: data.name,
+      });
+    setSaving(false);
+    if (settingsError) {
+      // No bloqueamos: el restaurante ya existe. Avisamos para que
+      // el super_admin pueda revisar a mano si algo falla.
+      toast.error(
+        `Tenant creado pero falló settings: ${settingsError.message}`
+      );
+    } else {
+      toast.success(`${data.name} creado · listo para usar`);
+    }
     setName("");
     setSlug("");
     setPlan("trial");

@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { ShieldCheck, LogOut } from "lucide-react";
+import { stopImpersonating } from "@/app/super-admin/restaurants/actions";
 
 // Layout del namespace de tenant /r/[slug]/...
 // Valida que el slug existe ANTES de renderizar cualquier child.
@@ -17,6 +21,7 @@ export default async function TenantLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  let tenantName: string | null = null;
 
   // Validación con anon key (no necesita sesión)
   try {
@@ -49,11 +54,60 @@ export default async function TenantLayout({
           </main>
         );
       }
+      tenantName = data?.name ?? null;
     }
   } catch {
     // Cualquier error de red/conexión inesperado: dejamos pasar y que
     // el child decida — evitamos 500s en preview/dev sin DB.
   }
 
-  return <>{children}</>;
+  // ── Banner de impersonate (solo si el usuario actual es super_admin)
+  // Lee con la sesión real: si el usuario logueado es super_admin Y está
+  // navegando un tenant que no es el suyo del profile, mostramos banner.
+  let isImpersonating = false;
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      isImpersonating = profile?.role === "super_admin";
+    }
+  } catch {
+    // Sin sesión: cliente normal, no se muestra el banner
+  }
+
+  return (
+    <>
+      {isImpersonating && (
+        <div className="sticky top-0 z-50 bg-primary text-primary-foreground px-4 py-2 flex items-center gap-3 text-sm shadow">
+          <ShieldCheck className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate">
+            Modo Super Admin · Operando{" "}
+            <strong>{tenantName ?? slug}</strong> como su admin
+          </span>
+          <Link
+            href="/super-admin/restaurants"
+            className="underline underline-offset-2 hover:opacity-80 hidden sm:inline"
+          >
+            Volver al panel
+          </Link>
+          <form action={stopImpersonating}>
+            <button
+              type="submit"
+              className="flex items-center gap-1 rounded bg-primary-foreground/10 hover:bg-primary-foreground/20 px-2 py-1 transition-colors"
+              title="Salir del modo super admin"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Salir</span>
+            </button>
+          </form>
+        </div>
+      )}
+      {children}
+    </>
+  );
 }
