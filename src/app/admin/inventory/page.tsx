@@ -6,6 +6,7 @@ import { Ingredient, StockMovement } from "@/lib/types";
 import {
   Home, Plus, Pencil, Trash2, LogOut, Loader2, AlertCircle,
   Package, TrendingDown, TrendingUp, AlertTriangle, History, ShoppingCart, X,
+  Search, Download, DollarSign, Flame,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,19 @@ import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
 
 const UNITS = ["g", "kg", "mL", "L", "pza", "porción", "caja", "lata", "bolsa"];
+
+// Razones predefinidas para registrar mermas (se guardan como prefijo en notes)
+const WASTE_REASONS = [
+  { value: "expired", label: "🕒 Caducidad" },
+  { value: "damaged", label: "💔 Daño / Rotura" },
+  { value: "error", label: "✋ Error de preparación" },
+  { value: "spoiled", label: "🤢 Echado a perder" },
+  { value: "theft", label: "🚨 Robo / Faltante" },
+  { value: "other", label: "📝 Otro" },
+];
+
+type SortKey = "name" | "stock" | "value" | "low";
+type FilterKey = "all" | "low" | "no_cost" | "no_movements";
 
 export default function InventoryPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -43,6 +57,16 @@ export default function InventoryPage() {
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustType, setAdjustType] = useState<"purchase" | "waste" | "adjustment">("purchase");
   const [adjustNotes, setAdjustNotes] = useState("");
+  const [wasteReason, setWasteReason] = useState<string>("expired");
+
+  // Search / filter / sort
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+
+  // Movements filter
+  const [movFilter, setMovFilter] = useState<"all" | "purchase" | "sale" | "waste" | "adjustment">("all");
+  const [movSearch, setMovSearch] = useState("");
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<Ingredient | null>(null);
@@ -174,11 +198,18 @@ export default function InventoryPage() {
     if (!adjustTarget || !adjustQty) return;
     const qty = parseFloat(adjustQty);
     const isAddition = adjustType === "purchase";
+    // For waste, prepend reason to the notes so we can categorize later
+    let finalNotes: string | null = adjustNotes.trim() || null;
+    if (adjustType === "waste") {
+      const reason = WASTE_REASONS.find((r) => r.value === wasteReason);
+      const reasonLabel = reason?.label ?? wasteReason;
+      finalNotes = `[${reasonLabel}]${finalNotes ? " " + finalNotes : ""}`;
+    }
     const movement = {
       ingredient_id: adjustTarget.id,
       type: adjustType,
       quantity: isAddition ? qty : -Math.abs(qty),
-      notes: adjustNotes || null,
+      notes: finalNotes,
       reference_id: null,
     };
     const { error: movErr } = await supabase.from("stock_movements").insert(movement);
@@ -245,6 +276,88 @@ export default function InventoryPage() {
   const lowStock = ingredients.filter((i) => i.stock <= i.min_stock && i.min_stock > 0);
   const totalCost = ingredients.reduce((s, i) => s + i.stock * i.cost_per_unit, 0);
 
+  // ── KPIs of the month ────────────────────────────────────────
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const ingCostById = new Map(ingredients.map((i) => [i.id, i.cost_per_unit]));
+  const monthMovements = movements.filter((m) => new Date(m.created_at) >= startOfMonth);
+  const monthPurchasesValue = monthMovements
+    .filter((m) => m.type === "purchase")
+    .reduce((s, m) => s + Math.abs(m.quantity) * (ingCostById.get(m.ingredient_id) ?? 0), 0);
+  const monthWasteValue = monthMovements
+    .filter((m) => m.type === "waste")
+    .reduce((s, m) => s + Math.abs(m.quantity) * (ingCostById.get(m.ingredient_id) ?? 0), 0);
+
+  // Ingredients that have ever moved (to spot dead stock)
+  const movedIngredientIds = new Set(movements.map((m) => m.ingredient_id));
+
+  const filteredIngredients = ingredients
+    .filter((i) => !search.trim() || i.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((i) => {
+      if (filter === "low") return i.min_stock > 0 && i.stock <= i.min_stock;
+      if (filter === "no_cost") return !i.cost_per_unit || i.cost_per_unit === 0;
+      if (filter === "no_movements") return !movedIngredientIds.has(i.id);
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortKey === "stock") return Number(a.stock) - Number(b.stock);
+      if (sortKey === "value") return b.stock * b.cost_per_unit - a.stock * a.cost_per_unit;
+      if (sortKey === "low") {
+        const aRatio = a.min_stock > 0 ? a.stock / a.min_stock : 999;
+        const bRatio = b.min_stock > 0 ? b.stock / b.min_stock : 999;
+        return aRatio - bRatio;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+  // ── Movements filter ─────────────────────────────────────────
+  const filteredMovements = movements
+    .filter((m) => movFilter === "all" || m.type === movFilter)
+    .filter((m) => {
+      if (!movSearch.trim()) return true;
+      const ingName = (m.ingredient as unknown as { name?: string })?.name ?? "";
+      const q = movSearch.toLowerCase();
+      return ingName.toLowerCase().includes(q) || (m.notes ?? "").toLowerCase().includes(q);
+    });
+
+  // ── Export CSV (visible movements) ──────────────────────────
+  function exportMovementsCSV() {
+    if (filteredMovements.length === 0) {
+      toast.error("No hay movimientos para exportar");
+      return;
+    }
+    const rows = [
+      ["Fecha", "Ingrediente", "Unidad", "Tipo", "Cantidad", "Notas"],
+      ...filteredMovements.map((m) => {
+        const ing = m.ingredient as unknown as { name?: string; unit?: string };
+        const fecha = new Date(m.created_at).toLocaleString("es-MX");
+        return [
+          fecha,
+          ing?.name ?? "",
+          ing?.unit ?? "",
+          MOVE_LABELS[m.type] ?? m.type,
+          String(m.quantity),
+          (m.notes ?? "").replace(/[\r\n]+/g, " "),
+        ];
+      }),
+    ];
+    const csv = rows
+      .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\r\n");
+    // Add UTF-8 BOM so Excel opens it with proper accent encoding
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `movimientos-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exportado: ${filteredMovements.length} movimientos`);
+  }
+
   const MOVE_LABELS: Record<string, string> = {
     sale: "Venta",
     purchase: "Compra",
@@ -259,8 +372,32 @@ export default function InventoryPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    <div className="min-h-screen bg-background">
+      <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
+        <div className="h-9 w-9 rounded-md bg-muted animate-pulse" />
+        <div className="h-5 w-32 rounded bg-muted animate-pulse" />
+      </header>
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-24 rounded-xl border bg-card p-4">
+              <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+              <div className="mt-3 h-7 w-16 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-20 rounded-xl border bg-card p-4 flex items-center gap-3">
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
+                <div className="h-3 w-1/3 rounded bg-muted animate-pulse" />
+              </div>
+              <div className="h-8 w-24 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
@@ -292,7 +429,7 @@ export default function InventoryPage() {
       {/* Header */}
       <header className="bg-card border-b px-6 py-4 flex items-center gap-4">
         <Link href="/"><Button variant="ghost" size="icon"><Home className="h-5 w-5" /></Button></Link>
-        <Package className="h-5 w-5 text-emerald-600" />
+        <Package className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-bold">Inventario</h1>
         <ThemeToggle />
         <div className="flex-1" />
@@ -313,31 +450,51 @@ export default function InventoryPage() {
       <div className="max-w-6xl mx-auto p-6 space-y-6">
 
         {/* KPI cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total ingredientes</CardTitle>
-              <Package className="h-4 w-4 text-emerald-500" />
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ingredientes</CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Package className="h-3.5 w-3.5" /></span>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{ingredients.length}</div></CardContent>
+            <CardContent><div className="text-2xl font-bold tabular-nums">{ingredients.length}</div></CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Stock bajo</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock bajo</CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400"><AlertTriangle className="h-3.5 w-3.5" /></span>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${lowStock.length > 0 ? "text-amber-600" : ""}`}>
+              <div className={`text-2xl font-bold tabular-nums ${lowStock.length > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>
                 {lowStock.length}
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Valor total inventario</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-500" />
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Valor inventario</CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><DollarSign className="h-3.5 w-3.5" /></span>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold">${totalCost.toFixed(2)}</div></CardContent>
+            <CardContent><div className="text-2xl font-bold tabular-nums">${totalCost.toFixed(2)}</div></CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Compras del mes</CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><ShoppingCart className="h-3.5 w-3.5" /></span>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">${monthPurchasesValue.toFixed(2)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Mermas del mes</CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-400"><Flame className="h-3.5 w-3.5" /></span>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold tabular-nums ${monthWasteValue > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                ${monthWasteValue.toFixed(2)}
+              </div>
+            </CardContent>
           </Card>
         </div>
 
@@ -353,17 +510,55 @@ export default function InventoryPage() {
           </TabsList>
 
           {/* ── Ingredients tab ── */}
-          <TabsContent value="ingredients" className="mt-4">
+          <TabsContent value="ingredients" className="mt-4 space-y-3">
             {lowStock.length > 0 && (
-              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>Stock bajo: <strong>{lowStock.map((i) => i.name).join(", ")}</strong></span>
               </div>
             )}
 
+            {/* Toolbar: buscador + filtros + orden */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar ingrediente..."
+                  className="pl-9"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <Select value={filter} onValueChange={(v) => v && setFilter(v as FilterKey)}>
+                <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="low">⚠️ Solo stock bajo</SelectItem>
+                  <SelectItem value="no_cost">Sin costo definido</SelectItem>
+                  <SelectItem value="no_movements">Sin movimientos</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortKey} onValueChange={(v) => v && setSortKey(v as SortKey)}>
+                <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Orden: Nombre A-Z</SelectItem>
+                  <SelectItem value="stock">Orden: Stock ↑</SelectItem>
+                  <SelectItem value="value">Orden: Valor $ ↓</SelectItem>
+                  <SelectItem value="low">Orden: Más bajo primero</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {ingredients.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Mostrando <strong className="tabular-nums">{filteredIngredients.length}</strong> de {ingredients.length} ingredientes
+              </p>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {ingredients.map((ing) => {
+              {filteredIngredients.map((ing) => {
                 const isLow = ing.min_stock > 0 && ing.stock <= ing.min_stock;
+                const value = ing.stock * ing.cost_per_unit;
                 return (
                   <Card key={ing.id} className={isLow ? "border-amber-400" : ""}>
                     <CardContent className="flex items-center gap-3 p-4">
@@ -376,18 +571,23 @@ export default function InventoryPage() {
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-sm">
-                          <span className={`font-bold ${isLow ? "text-amber-600" : "text-emerald-600"}`}>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-sm">
+                          <span className={`font-bold tabular-nums ${isLow ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                             {ing.stock.toLocaleString("es-MX", { maximumFractionDigits: 3 })} {ing.unit}
                           </span>
                           {ing.min_stock > 0 && (
-                            <span className="text-muted-foreground">
+                            <span className="text-muted-foreground tabular-nums">
                               mín: {ing.min_stock} {ing.unit}
                             </span>
                           )}
                           {ing.cost_per_unit > 0 && (
-                            <span className="text-muted-foreground">
+                            <span className="text-muted-foreground tabular-nums">
                               ${ing.cost_per_unit}/{ing.unit}
+                            </span>
+                          )}
+                          {value > 0 && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground tabular-nums">
+                              ${value.toFixed(2)}
                             </span>
                           )}
                         </div>
@@ -395,7 +595,7 @@ export default function InventoryPage() {
                       <div className="flex gap-1 shrink-0">
                         <Button size="icon" variant="outline" className="h-8 w-8"
                           title="Ajustar stock"
-                          onClick={() => { setAdjustTarget(ing); setAdjustQty(""); setAdjustNotes(""); setAdjustType("purchase"); }}>
+                          onClick={() => { setAdjustTarget(ing); setAdjustQty(""); setAdjustNotes(""); setAdjustType("purchase"); setWasteReason("expired"); }}>
                           <TrendingUp className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-8 w-8"
@@ -411,18 +611,56 @@ export default function InventoryPage() {
                   </Card>
                 );
               })}
-              {ingredients.length === 0 && (
-                <p className="text-muted-foreground col-span-2 text-center py-12">
-                  No hay ingredientes. Agrega el primero.
-                </p>
-              )}
+              {ingredients.length === 0 ? (
+                <div className="col-span-2 text-center py-12 space-y-3">
+                  <Package className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                  <p className="text-muted-foreground">No hay ingredientes. Agrega el primero.</p>
+                </div>
+              ) : filteredIngredients.length === 0 ? (
+                <div className="col-span-2 text-center py-12 space-y-3">
+                  <Search className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                  <p className="text-muted-foreground">Ningún ingrediente coincide con el filtro</p>
+                  <Button size="sm" variant="outline" onClick={() => { setSearch(""); setFilter("all"); }}>
+                    Limpiar filtros
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </TabsContent>
 
           {/* ── Movements tab ── */}
-          <TabsContent value="movements" className="mt-4">
+          <TabsContent value="movements" className="mt-4 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar ingrediente o nota..."
+                  className="pl-9"
+                  value={movSearch}
+                  onChange={(e) => setMovSearch(e.target.value)}
+                />
+              </div>
+              <Select value={movFilter} onValueChange={(v) => v && setMovFilter(v as typeof movFilter)}>
+                <SelectTrigger className="sm:w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los tipos</SelectItem>
+                  <SelectItem value="purchase">📦 Compras</SelectItem>
+                  <SelectItem value="sale">🛒 Ventas</SelectItem>
+                  <SelectItem value="waste">🗑️ Mermas</SelectItem>
+                  <SelectItem value="adjustment">✏️ Ajustes</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={exportMovementsCSV} title="Exportar CSV de los movimientos visibles">
+                <Download className="h-4 w-4 mr-2" /> CSV
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Mostrando <strong className="tabular-nums">{filteredMovements.length}</strong> de {movements.length} movimientos (últimos 100)
+            </p>
+
             <div className="space-y-2">
-              {movements.map((m) => {
+              {filteredMovements.map((m) => {
                 const isPositive = m.quantity > 0;
                 return (
                   <div key={m.id} className="flex items-center gap-3 p-3 bg-card border rounded-lg">
@@ -433,17 +671,17 @@ export default function InventoryPage() {
                       <p className="text-sm font-medium truncate">
                         {(m.ingredient as unknown as { name: string })?.name ?? "—"}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground truncate">
                         {MOVE_LABELS[m.type] ?? m.type}
                         {m.notes && ` · ${m.notes}`}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className={`font-bold text-sm ${MOVE_COLOR[m.type]}`}>
+                      <p className={`font-bold text-sm tabular-nums ${MOVE_COLOR[m.type]}`}>
                         {isPositive ? "+" : ""}{m.quantity.toLocaleString("es-MX", { maximumFractionDigits: 3 })}
                         {" "}{(m.ingredient as unknown as { unit: string })?.unit ?? ""}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground tabular-nums">
                         {new Date(m.created_at).toLocaleString("es-MX", {
                           day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                         })}
@@ -452,11 +690,20 @@ export default function InventoryPage() {
                   </div>
                 );
               })}
-              {movements.length === 0 && (
-                <p className="text-center text-muted-foreground py-12">
-                  No hay movimientos registrados aún
-                </p>
-              )}
+              {movements.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <History className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                  <p className="text-muted-foreground">No hay movimientos registrados aún</p>
+                </div>
+              ) : filteredMovements.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <Search className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                  <p className="text-muted-foreground">Ningún movimiento coincide con el filtro</p>
+                  <Button size="sm" variant="outline" onClick={() => { setMovSearch(""); setMovFilter("all"); }}>
+                    Limpiar filtros
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </TabsContent>
         </Tabs>
@@ -526,6 +773,22 @@ export default function InventoryPage() {
                 </SelectContent>
               </Select>
             </div>
+            {adjustType === "waste" && (
+              <div>
+                <Label>Motivo de la merma</Label>
+                <Select value={wasteReason} onValueChange={(v) => v && setWasteReason(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {WASTE_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Saber por qué se merma ayuda a reducirlo el próximo mes.
+                </p>
+              </div>
+            )}
             <div>
               <Label>Cantidad ({adjustTarget?.unit})</Label>
               <Input type="number" min="0.001" step="0.001" value={adjustQty}
@@ -565,7 +828,7 @@ export default function InventoryPage() {
         <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-emerald-600" /> Registrar Compra
+              <ShoppingCart className="h-5 w-5 text-primary" /> Registrar Compra
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
