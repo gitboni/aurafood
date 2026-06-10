@@ -294,14 +294,34 @@ END $$;
 -- al rol anon SI restaurant_id = current_restaurant_id().
 -- ────────────────────────────────────────────────────────────
 
--- restaurants: solo super_admin ve TODO; cada usuario ve el suyo
+-- restaurants:
+--   • anon + authenticated → SELECT de tenants ACTIVOS
+--     (necesario para que el menú QR resuelva slug → id)
+--   • super_admin → SELECT de TODOS los tenants (incluidos
+--     suspended y cancelled, para reactivarlos)
+--   • super_admin → ALL writes (alta, suspender, etc.)
 ALTER TABLE public.restaurants ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "restaurants_read"  ON public.restaurants;
-DROP POLICY IF EXISTS "restaurants_admin" ON public.restaurants;
-CREATE POLICY "restaurants_read" ON public.restaurants FOR SELECT TO authenticated
-  USING (id = public.current_restaurant_id() OR public.is_super_admin());
-CREATE POLICY "restaurants_admin" ON public.restaurants FOR ALL TO authenticated
-  USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+DROP POLICY IF EXISTS "restaurants_read"             ON public.restaurants;
+DROP POLICY IF EXISTS "restaurants_admin"            ON public.restaurants;
+DROP POLICY IF EXISTS "restaurants_public_resolve"   ON public.restaurants;
+DROP POLICY IF EXISTS "restaurants_public_active"    ON public.restaurants;
+DROP POLICY IF EXISTS "restaurants_super_admin_read" ON public.restaurants;
+
+CREATE POLICY "restaurants_public_active"
+  ON public.restaurants FOR SELECT
+  TO anon, authenticated
+  USING (status = 'active');
+
+CREATE POLICY "restaurants_super_admin_read"
+  ON public.restaurants FOR SELECT
+  TO authenticated
+  USING (public.is_super_admin());
+
+CREATE POLICY "restaurants_admin"
+  ON public.restaurants FOR ALL
+  TO authenticated
+  USING (public.is_super_admin())
+  WITH CHECK (public.is_super_admin());
 
 -- profiles: ya tiene policies; refinar para que admins solo vean su tenant
 DROP POLICY IF EXISTS "profiles_read"  ON public.profiles;

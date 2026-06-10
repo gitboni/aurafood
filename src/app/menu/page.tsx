@@ -90,6 +90,7 @@ export default function MenuPage() {
         .eq("slug", slug)
         .maybeSingle();
       if (tErr || !tenant) {
+        console.error("Tenant resolve error", { slug, error: tErr });
         setError(true);
         setLoading(false);
         return;
