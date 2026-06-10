@@ -66,6 +66,8 @@ export default function MenuPage() {
   const [qrOrdering, setQrOrdering] = useState(true);
   const [qrTip, setQrTip] = useState(false);
   const [onlinePayment, setOnlinePayment] = useState(ENABLE_PAYMENTS);
+  // ── Multi-tenant: resolver el restaurant_id antes de cargar nada
+  const [tenantId, setTenantId] = useState<string | null>(null);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -73,11 +75,43 @@ export default function MenuPage() {
   const router = useRouter();
 
   useEffect(() => {
-    async function load() {
+    // Resolver el slug del tenant: si estamos en /r/[slug]/menu, sacarlo
+    // del path; si no, default a 'el-buen-comer' (compat con URLs viejas
+    // mientras F3.2 no termina de mover todo).
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    const m = path.match(/^\/r\/([a-z0-9][a-z0-9-]*[a-z0-9])(?:\/|$)/);
+    const slug = m ? m[1] : "el-buen-comer";
+
+    async function bootstrap() {
+      // 1. Resolver slug → id
+      const { data: tenant, error: tErr } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (tErr || !tenant) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+      const tid = tenant.id;
+      setTenantId(tid);
+
+      // 2. Cargar categorías + productos filtrados por tenant
       try {
         const [catRes, prodRes] = await Promise.all([
-          supabase.from("categories").select("*").eq("active", true).order("sort_order"),
-          supabase.from("products").select("*").eq("available", true).order("sort_order"),
+          supabase
+            .from("categories")
+            .select("*")
+            .eq("restaurant_id", tid)
+            .eq("active", true)
+            .order("sort_order"),
+          supabase
+            .from("products")
+            .select("*")
+            .eq("restaurant_id", tid)
+            .eq("available", true)
+            .order("sort_order"),
         ]);
         if (catRes.error) throw catRes.error;
         if (prodRes.error) throw prodRes.error;
@@ -88,24 +122,31 @@ export default function MenuPage() {
       } finally {
         setLoading(false);
       }
+
+      // 3. Modifiers + settings — paralelo, no bloquea el render
+      loadModifiers(tid);
+      supabase
+        .from("settings")
+        .select("*")
+        .eq("restaurant_id", tid)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) return;
+          if (data.restaurant_name) setRestaurantName(data.restaurant_name);
+          if (data.logo_url) setLogoUrl(data.logo_url);
+          setQrOrdering(data.enable_qr_ordering ?? true);
+          setQrTip(data.enable_qr_tip ?? false);
+          setOnlinePayment(data.enable_online_payment ?? ENABLE_PAYMENTS);
+        });
     }
-    load();
-    loadModifiers();
-    supabase.from("settings").select("*").eq("id", 1).maybeSingle()
-      .then(({ data }) => {
-        if (!data) return;
-        if (data.restaurant_name) setRestaurantName(data.restaurant_name);
-        if (data.logo_url) setLogoUrl(data.logo_url);
-        setQrOrdering(data.enable_qr_ordering ?? true);
-        setQrTip(data.enable_qr_tip ?? false);
-        setOnlinePayment(data.enable_online_payment ?? ENABLE_PAYMENTS);
-      });
+    bootstrap();
   }, []);
 
-  async function loadModifiers() {
+  async function loadModifiers(tid: string) {
     const { data, error } = await supabase
       .from("product_modifier_groups")
-      .select("product_id, modifier_groups(*, modifiers(*))");
+      .select("product_id, modifier_groups(*, modifiers(*))")
+      .eq("restaurant_id", tid);
     if (error || !data) return;
     const map: Record<string, ModifierGroup[]> = {};
     for (const row of data as unknown as { product_id: string; modifier_groups: ModifierGroup | null }[]) {
@@ -151,11 +192,16 @@ export default function MenuPage() {
 
   async function placeOrder(payOnline: boolean) {
     if (items.length === 0) return;
+    if (!tenantId) {
+      toast.error("No se pudo identificar el restaurante. Recarga la página.");
+      return;
+    }
     setPlacing(true);
     try {
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
+          restaurant_id: tenantId,
           customer_name: customerName || null,
           customer_phone: customerPhone.replace(/\D/g, "") || null,
           customer_table: customerTable || null,
@@ -176,6 +222,7 @@ export default function MenuPage() {
         const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
         const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
         return {
+          restaurant_id: tenantId,
           order_id: order.id,
           product_id: i.product.id,
           product_name: i.product.name,
@@ -231,8 +278,10 @@ export default function MenuPage() {
       }
 
       router.push(`/menu/order/${order.id}`);
-    } catch {
-      toast.error("Error al crear el pedido, intenta de nuevo");
+    } catch (err) {
+      console.error("placeOrder error:", err);
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      toast.error(`No se pudo crear el pedido: ${msg}`);
     } finally {
       setPlacing(false);
     }
