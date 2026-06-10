@@ -161,3 +161,50 @@ export async function stopImpersonating() {
   store.delete(TENANT_ID_COOKIE);
   redirect("/super-admin");
 }
+
+/**
+ * Extiende (o reinicia) el trial de un restaurante N días desde HOY.
+ * Si el tenant no estaba en trial, lo pone en trial.
+ */
+export async function extendTrial(
+  restaurantId: string,
+  days: number
+): Promise<{ ok: true; until: string } | { ok: false; error: string }> {
+  const caller = await assertSuperAdmin();
+  if (!caller) return { ok: false, error: "Solo super_admin" };
+  if (!Number.isFinite(days) || days <= 0 || days > 365) {
+    return { ok: false, error: "Número de días inválido" };
+  }
+  const supabase = await createClient();
+  const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from("restaurants")
+    .update({
+      plan: "trial",
+      status: "active",
+      trial_ends_at: until,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", restaurantId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, until };
+}
+
+/**
+ * Guarda las notas internas (CRM) de un restaurante.
+ * Requiere columna restaurants.internal_notes (patch4).
+ */
+export async function saveTenantNotes(
+  restaurantId: string,
+  notes: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const caller = await assertSuperAdmin();
+  if (!caller) return { ok: false, error: "Solo super_admin" };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("restaurants")
+    .update({ internal_notes: notes, updated_at: new Date().toISOString() })
+    .eq("id", restaurantId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

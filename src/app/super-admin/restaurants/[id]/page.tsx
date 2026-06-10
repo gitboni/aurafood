@@ -15,6 +15,8 @@ import {
 import { PlanBadge, StatusBadge } from "../../badges";
 import { RestaurantActions } from "./restaurant-actions";
 import { InviteAdmin } from "./invite-admin";
+import { ExtendTrial, TenantNotes } from "./tenant-tools";
+import { Activity } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,42 @@ export default async function RestaurantDetail({
     .maybeSingle();
 
   if (!r) notFound();
+
+  // internal_notes en query aparte: si la columna aún no existe
+  // (patch4 no aplicado), no rompemos la página entera.
+  let internalNotes = "";
+  try {
+    const { data: notesRow } = await supabase
+      .from("restaurants")
+      .select("internal_notes")
+      .eq("id", id)
+      .maybeSingle();
+    internalNotes = (notesRow as { internal_notes?: string } | null)?.internal_notes ?? "";
+  } catch {
+    internalNotes = "";
+  }
+
+  // Salud del tenant: última orden + órdenes últimos 7 días
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const [lastOrderRes, weekOrdersRes] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("created_at")
+      .eq("restaurant_id", r.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", r.id)
+      .gte("created_at", sevenDaysAgo),
+  ]);
+  const lastOrderAt = lastOrderRes.data?.created_at ?? null;
+  const ordersWeek = weekOrdersRes.count ?? 0;
+  const daysSinceLastOrder = lastOrderAt
+    ? Math.floor((Date.now() - new Date(lastOrderAt).getTime()) / (24 * 60 * 60 * 1000))
+    : null;
 
   // Métricas del tenant — usamos count para no traer filas reales
   const [products, orders, customers, admins] = await Promise.all([
@@ -162,6 +200,58 @@ export default async function RestaurantDetail({
             currentPlan={r.plan}
             currentStatus={r.status}
           />
+        </CardContent>
+      </Card>
+
+      {/* Salud del tenant */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" /> Salud
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wide">Última orden</p>
+              <p className="font-medium mt-0.5">
+                {lastOrderAt ? (
+                  <span className={daysSinceLastOrder !== null && daysSinceLastOrder > 7 ? "text-amber-600 dark:text-amber-400" : ""}>
+                    {daysSinceLastOrder === 0
+                      ? "Hoy"
+                      : daysSinceLastOrder === 1
+                      ? "Ayer"
+                      : `Hace ${daysSinceLastOrder} días`}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Nunca</span>
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wide">Órdenes (7 días)</p>
+              <p className="font-medium mt-0.5 tabular-nums">{ordersWeek}</p>
+            </div>
+          </div>
+          {(!lastOrderAt || (daysSinceLastOrder !== null && daysSinceLastOrder > 14)) && (
+            <div className="text-xs p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300">
+              ⚠️ Sin actividad reciente — buen candidato para seguimiento comercial.
+            </div>
+          )}
+          <div className="pt-2 border-t">
+            <ExtendTrial id={r.id} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notas internas (CRM) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notas internas</CardTitle>
+          <p className="text-sm text-muted-foreground">Privadas — solo super_admin.</p>
+        </CardHeader>
+        <CardContent>
+          <TenantNotes id={r.id} initial={internalNotes} />
         </CardContent>
       </Card>
 

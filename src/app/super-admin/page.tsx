@@ -9,6 +9,9 @@ import {
   AlertOctagon,
   DollarSign,
   ArrowRight,
+  ShoppingBag,
+  TrendingUp,
+  History,
 } from "lucide-react";
 import { PlanBadge, StatusBadge } from "./badges";
 
@@ -64,6 +67,38 @@ export default async function SuperAdminDashboard() {
   const mrr = restaurants
     .filter((r) => r.status === "active")
     .reduce((s, r) => s + (PLAN_PRICE[r.plan] ?? 0), 0);
+
+  // ── Actividad de la plataforma (super_admin bypasa RLS) ──
+  const startOfMonthISO = startOfMonth.toISOString();
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const startOfDayISO = startOfDay.toISOString();
+
+  const [gmvMonthRes, ordersTodayRes, ordersMonthRes] = await Promise.all([
+    // GMV del mes: suma de totales de órdenes entregadas este mes
+    supabase
+      .from("orders")
+      .select("total")
+      .eq("status", "delivered")
+      .gte("created_at", startOfMonthISO),
+    // Órdenes de hoy (todas las fuentes)
+    supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startOfDayISO),
+    // Órdenes del mes
+    supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startOfMonthISO),
+  ]);
+
+  const gmvMonth = (gmvMonthRes.data ?? []).reduce(
+    (s, o) => s + Number((o as { total: number }).total || 0),
+    0
+  );
+  const ordersToday = ordersTodayRes.count ?? 0;
+  const ordersMonth = ordersMonthRes.count ?? 0;
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -179,6 +214,64 @@ export default async function SuperAdminDashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Actividad de la plataforma — datos reales de todos los tenants */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" /> Actividad de la plataforma
+          </h2>
+          <Link href="/super-admin/audit" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+            <History className="h-3.5 w-3.5" /> Auditoría global
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                GMV del mes
+              </CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <DollarSign className="h-3.5 w-3.5" />
+              </span>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                ${gmvMonth.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Ventas entregadas (todos los restaurantes)
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Órdenes hoy
+              </CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ShoppingBag className="h-3.5 w-3.5" />
+              </span>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold tabular-nums">{ordersToday}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Órdenes del mes
+              </CardTitle>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <ShoppingBag className="h-3.5 w-3.5" />
+              </span>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold tabular-nums">{ordersMonth}</div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Trials por vencer */}

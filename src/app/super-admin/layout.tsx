@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LayoutDashboard, Store, Home, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Store, Home, LogOut, ShieldCheck, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { requireSuperAdmin } from "@/lib/tenant-server";
@@ -44,6 +44,11 @@ export default async function SuperAdminLayout({
           <Link href="/super-admin/restaurants">
             <Button variant="ghost" size="sm" className="gap-1.5">
               <Store className="h-4 w-4" /> Restaurantes
+            </Button>
+          </Link>
+          <Link href="/super-admin/audit">
+            <Button variant="ghost" size="sm" className="gap-1.5">
+              <History className="h-4 w-4" /> Auditoría
             </Button>
           </Link>
         </nav>
