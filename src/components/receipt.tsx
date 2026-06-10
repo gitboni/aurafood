@@ -104,7 +104,8 @@ export function Receipt({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl w-full max-w-[320px] max-h-[92vh] overflow-auto shadow-2xl print:shadow-none print:rounded-none print:max-h-none print:overflow-visible print:w-[80mm]"
+        className="bg-white text-gray-900 rounded-xl w-full max-w-[320px] max-h-[92vh] overflow-auto shadow-2xl print:shadow-none print:rounded-none print:max-h-none print:overflow-visible print:w-[80mm]"
+        style={{ colorScheme: "light" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Controls — hidden on print */}
