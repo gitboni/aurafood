@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const to = url.searchParams.get("to");
   const date = url.searchParams.get("date") || new Date().toISOString().split("T")[0];
   const format = url.searchParams.get("format") || "csv";
+  const restaurantId = url.searchParams.get("restaurant_id");
 
   let startISO: string, endISO: string;
   if (from && to) {
@@ -23,12 +24,19 @@ export async function GET(request: NextRequest) {
     endISO = end.toISOString();
   }
 
-  const { data: orders } = await supabase
+  // Multi-tenant: filtrar por restaurant_id si se provee.
+  // Sin esto, un super_admin (que bypasa RLS) exportaría órdenes de
+  // TODOS los tenants. Para un admin normal la RLS ya lo limita, pero
+  // pasarlo explícito es defense-in-depth.
+  let ordersQuery = supabase
     .from("orders")
     .select("*, order_items(*)")
     .gte("created_at", startISO)
-    .lte("created_at", endISO)
-    .order("created_at", { ascending: false });
+    .lte("created_at", endISO);
+  if (restaurantId) {
+    ordersQuery = ordersQuery.eq("restaurant_id", restaurantId);
+  }
+  const { data: orders } = await ordersQuery.order("created_at", { ascending: false });
 
   if (!orders || orders.length === 0) {
     return NextResponse.json({ error: "No hay órdenes para este rango" }, { status: 404 });

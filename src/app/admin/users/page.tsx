@@ -18,6 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
+import { useTenantId } from "@/lib/tenant-client";
 
 const ROLE_LABELS: Record<UserRole, string> = { admin: "Administrador", cashier: "Cajero", kitchen: "Cocina" };
 const ROLE_COLORS: Record<UserRole, string> = { admin: "bg-blue-100 text-blue-800", cashier: "bg-orange-100 text-orange-800", kitchen: "bg-green-100 text-green-800" };
@@ -31,16 +32,29 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function loadProfiles() {
-    const { data } = await supabase.from("profiles").select("*").order("created_at");
+    if (!tenantId) return;
+    // Solo los usuarios de ESTE restaurante (excluye super_admin global
+    // que tiene restaurant_id pero rol distinto, y otros tenants).
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("restaurant_id", tenantId)
+      .in("role", ["admin", "cashier", "kitchen"])
+      .order("created_at");
     if (data) setProfiles(data);
   }
 
-  useEffect(() => { loadProfiles(); }, []);
+  useEffect(() => {
+    if (tenantId) loadProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   async function createUser() {
     if (!email || !password || !name) { toast.error("Completa todos los campos"); return; }
+    if (!tenantId) { toast.error("No se pudo identificar el restaurante"); return; }
     setCreating(true);
 
     const { data, error } = await supabase.auth.signUp({
@@ -52,7 +66,11 @@ export default function UsersPage() {
     if (error) { toast.error(error.message); setCreating(false); return; }
 
     if (data.user) {
-      await supabase.from("profiles").update({ role, display_name: name }).eq("id", data.user.id);
+      // Asignar rol + display_name + RESTAURANT_ID al nuevo perfil
+      await supabase
+        .from("profiles")
+        .update({ role, display_name: name, restaurant_id: tenantId })
+        .eq("id", data.user.id);
     }
 
     toast.success(`Usuario ${name} creado como ${ROLE_LABELS[role]}`);
@@ -62,14 +80,24 @@ export default function UsersPage() {
   }
 
   async function updateRole(profileId: string, newRole: string) {
-    await supabase.from("profiles").update({ role: newRole }).eq("id", profileId);
+    if (!tenantId) return;
+    await supabase
+      .from("profiles")
+      .update({ role: newRole })
+      .eq("id", profileId)
+      .eq("restaurant_id", tenantId);
     toast.success("Rol actualizado");
     loadProfiles();
   }
 
   async function deleteUser(profileId: string) {
     if (!confirm("¿Eliminar este usuario?")) return;
-    await supabase.from("profiles").delete().eq("id", profileId);
+    if (!tenantId) return;
+    await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", profileId)
+      .eq("restaurant_id", tenantId);
     toast.success("Usuario eliminado");
     loadProfiles();
   }

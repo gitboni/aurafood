@@ -29,6 +29,7 @@ import {
   AreaChart, Area,
 } from "recharts";
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useTenantId } from "@/lib/tenant-client";
 
 const PAGE_SIZE = 50;
 
@@ -71,8 +72,10 @@ export default function ReportsPage() {
   const [refundOrder, setRefundOrder] = useState<Order | null>(null);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function loadOrders(_d: string, reset = true) {
+    if (!tenantId) return;
     if (reset) { setLoading(true); setError(false); setPage(0); }
     else setLoadingMore(true);
 
@@ -85,12 +88,14 @@ export default function ReportsPage() {
       const { count } = await supabase
         .from("orders")
         .select("*", { count: "exact", head: true })
+        .eq("restaurant_id", tenantId)
         .gte("created_at", startISO)
         .lte("created_at", endISO);
 
       const { data, error: dataError } = await supabase
         .from("orders")
         .select("*, order_items(*)")
+        .eq("restaurant_id", tenantId)
         .gte("created_at", startISO)
         .lte("created_at", endISO)
         .order("created_at", { ascending: false })
@@ -109,10 +114,12 @@ export default function ReportsPage() {
   }
 
   async function loadMovements(_d: string) {
+    if (!tenantId) return;
     const { start, end } = rangeBounds();
     const { data, error } = await supabase
       .from("stock_movements")
       .select("*, ingredient:ingredients(name, unit)")
+      .eq("restaurant_id", tenantId)
       .eq("type", "sale")
       .gte("created_at", start)
       .lte("created_at", end)
@@ -122,7 +129,8 @@ export default function ReportsPage() {
   }
 
   async function loadCosts() {
-    const { data } = await supabase.from("products").select("id, cost");
+    if (!tenantId) return;
+    const { data } = await supabase.from("products").select("id, cost").eq("restaurant_id", tenantId);
     if (data) {
       const map: Record<string, number> = {};
       data.forEach((p: { id: string; cost: number | null }) => { map[p.id] = Number(p.cost) || 0; });
@@ -130,7 +138,10 @@ export default function ReportsPage() {
     }
   }
 
-  useEffect(() => { loadOrders(date); loadMovements(date); loadCosts(); }, [date, range]);
+  useEffect(() => {
+    if (tenantId) { loadOrders(date); loadMovements(date); loadCosts(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, range, tenantId]);
 
   const delivered   = orders.filter((o) => o.status === "delivered");
   const totalRevenue = delivered.reduce((s, o) => s + Number(o.total), 0);
@@ -232,7 +243,8 @@ export default function ReportsPage() {
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
         <Button variant="outline" size="sm" onClick={() => {
           const { start, end } = rangeBounds();
-          window.open(`/api/reports/export?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}&format=csv`, "_blank");
+          const tid = tenantId ? `&restaurant_id=${encodeURIComponent(tenantId)}` : "";
+          window.open(`/api/reports/export?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}&format=csv${tid}`, "_blank");
         }}>
           📥 Exportar CSV
         </Button>
