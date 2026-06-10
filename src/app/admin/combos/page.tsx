@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
+import { useTenantId } from "@/lib/tenant-client";
 
 type ComboFull = Combo & { combo_items: ComboItem[] };
 
@@ -35,16 +36,21 @@ export default function CombosPage() {
   const [addProdId, setAddProdId] = useState("");
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
+    if (!tenantId) return;
     const [cRes, pRes] = await Promise.all([
-      supabase.from("combos").select("*, combo_items(*)").order("sort_order"),
-      supabase.from("products").select("id, name, price").order("name"),
+      supabase.from("combos").select("*, combo_items(*)").eq("restaurant_id", tenantId).order("sort_order"),
+      supabase.from("products").select("id, name, price").eq("restaurant_id", tenantId).order("name"),
     ]);
     if (cRes.data) setCombos(cRes.data as ComboFull[]);
     if (pRes.data) setProducts(pRes.data as Product[]);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (tenantId) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function openDialog(combo?: ComboFull) {
     if (combo) {
@@ -72,20 +78,21 @@ export default function CombosPage() {
     if (!name.trim() || !price || lines.length === 0) {
       toast.error("Nombre, precio y al menos un producto"); return;
     }
+    if (!tenantId) return;
     const payload = {
       name, description: desc || null, price: parseFloat(price), featured,
     };
     let comboId = editing?.id;
     if (editing) {
-      await supabase.from("combos").update(payload).eq("id", editing.id);
+      await supabase.from("combos").update(payload).eq("id", editing.id).eq("restaurant_id", tenantId);
       await supabase.from("combo_items").delete().eq("combo_id", editing.id);
     } else {
-      const { data } = await supabase.from("combos").insert({ ...payload, sort_order: combos.length }).select("id").single();
+      const { data } = await supabase.from("combos").insert({ ...payload, sort_order: combos.length, restaurant_id: tenantId }).select("id").single();
       comboId = data?.id;
     }
     if (comboId) {
       await supabase.from("combo_items").insert(
-        lines.map((l) => ({ combo_id: comboId, product_id: l.product_id, product_name: l.product_name, quantity: l.quantity }))
+        lines.map((l) => ({ restaurant_id: tenantId, combo_id: comboId, product_id: l.product_id, product_name: l.product_name, quantity: l.quantity }))
       );
     }
     toast.success(editing ? "Combo actualizado" : "Combo creado");
@@ -94,12 +101,14 @@ export default function CombosPage() {
   }
 
   async function deleteCombo(id: string) {
-    await supabase.from("combos").delete().eq("id", id);
+    if (!tenantId) return;
+    await supabase.from("combos").delete().eq("id", id).eq("restaurant_id", tenantId);
     toast.success("Combo eliminado");
     load();
   }
   async function toggleCombo(c: ComboFull) {
-    await supabase.from("combos").update({ available: !c.available }).eq("id", c.id);
+    if (!tenantId) return;
+    await supabase.from("combos").update({ available: !c.available }).eq("id", c.id).eq("restaurant_id", tenantId);
     load();
   }
 

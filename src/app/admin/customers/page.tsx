@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { useTenantId } from "@/lib/tenant-client";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -19,11 +20,14 @@ export default function CustomersPage() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [search, setSearch] = useState("");
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
+    if (!tenantId) return;
     const { data, error } = await supabase
       .from("customers")
       .select("*")
+      .eq("restaurant_id", tenantId)
       .order("total_spent", { ascending: false })
       .limit(500);
     if (error?.code === "42P01") { setNeedsSetup(true); setLoading(false); return; }
@@ -31,7 +35,10 @@ export default function CustomersPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (tenantId) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   const filtered = search.trim()
     ? customers.filter((c) => {

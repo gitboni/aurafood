@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useTenantId } from "@/lib/tenant-client";
 import { toast } from "sonner";
 
 const ACTIVE_LOCATION_KEY = "aurafood-active-location";
@@ -29,18 +30,21 @@ export default function LocationsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Location | null>(null);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
-    const { data, error } = await supabase.from("locations").select("*").order("created_at");
+    if (!tenantId) return;
+    const { data, error } = await supabase.from("locations").select("*").eq("restaurant_id", tenantId).order("created_at");
     if (error?.code === "42P01") { setNeedsSetup(true); setLoading(false); return; }
     setLocations(data ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
-    load();
+    if (tenantId) load();
     if (typeof window !== "undefined") setActiveId(localStorage.getItem(ACTIVE_LOCATION_KEY));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function selectLocation(id: string) {
     localStorage.setItem(ACTIVE_LOCATION_KEY, id);
@@ -55,11 +59,11 @@ export default function LocationsPage() {
   }
 
   async function save() {
-    if (!name.trim()) return;
+    if (!name.trim() || !tenantId) return;
     const payload = { name, address: address || null, phone: phone || null };
     const op = editing
-      ? supabase.from("locations").update(payload).eq("id", editing.id)
-      : supabase.from("locations").insert({ ...payload, active: true });
+      ? supabase.from("locations").update(payload).eq("id", editing.id).eq("restaurant_id", tenantId)
+      : supabase.from("locations").insert({ ...payload, active: true, restaurant_id: tenantId });
     const { error } = await op;
     if (error) { toast.error("Error al guardar"); return; }
     toast.success(editing ? "Sucursal actualizada" : "Sucursal creada");

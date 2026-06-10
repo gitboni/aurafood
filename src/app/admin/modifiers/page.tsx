@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useTenantId } from "@/lib/tenant-client";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -37,15 +38,17 @@ export default function ModifiersPage() {
   const [linkingGroup, setLinkingGroup] = useState<string | null>(null);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function loadData() {
-    const { data: g } = await supabase.from("modifier_groups").select("*, modifiers(*)").order("sort_order");
+    if (!tenantId) return;
+    const { data: g } = await supabase.from("modifier_groups").select("*, modifiers(*)").eq("restaurant_id", tenantId).order("sort_order");
     if (g) setGroups(g);
 
-    const { data: p } = await supabase.from("products").select("id, name, price").order("name");
+    const { data: p } = await supabase.from("products").select("id, name, price").eq("restaurant_id", tenantId).order("name");
     if (p) setProducts(p as Product[]);
 
-    const { data: links } = await supabase.from("product_modifier_groups").select("*");
+    const { data: links } = await supabase.from("product_modifier_groups").select("*").eq("restaurant_id", tenantId);
     if (links) {
       const map: Record<string, string[]> = {};
       links.forEach((l: { group_id: string; product_id: string }) => {
@@ -56,7 +59,10 @@ export default function ModifiersPage() {
     }
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (tenantId) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function openGroupDialog(group?: ModifierGroup) {
     if (group) {
@@ -74,13 +80,13 @@ export default function ModifiersPage() {
   }
 
   async function saveGroup() {
-    if (!groupName.trim()) return;
+    if (!groupName.trim() || !tenantId) return;
     const data = { name: groupName, required: groupRequired, max_select: parseInt(groupMaxSelect) || 1 };
     if (editingGroup) {
-      await supabase.from("modifier_groups").update(data).eq("id", editingGroup.id);
+      await supabase.from("modifier_groups").update(data).eq("id", editingGroup.id).eq("restaurant_id", tenantId);
       toast.success("Grupo actualizado");
     } else {
-      await supabase.from("modifier_groups").insert({ ...data, sort_order: groups.length });
+      await supabase.from("modifier_groups").insert({ ...data, sort_order: groups.length, restaurant_id: tenantId });
       toast.success("Grupo creado");
     }
     setShowGroupDialog(false);
@@ -94,8 +100,9 @@ export default function ModifiersPage() {
   }
 
   async function addModifier() {
-    if (!addingModTo || !modName.trim()) return;
+    if (!addingModTo || !modName.trim() || !tenantId) return;
     await supabase.from("modifiers").insert({
+      restaurant_id: tenantId,
       group_id: addingModTo,
       name: modName,
       price: parseFloat(modPrice) || 0,
@@ -114,11 +121,12 @@ export default function ModifiersPage() {
   }
 
   async function toggleProductLink(groupId: string, productId: string) {
+    if (!tenantId) return;
     const current = linkedProducts[groupId] || [];
     if (current.includes(productId)) {
-      await supabase.from("product_modifier_groups").delete().eq("group_id", groupId).eq("product_id", productId);
+      await supabase.from("product_modifier_groups").delete().eq("group_id", groupId).eq("product_id", productId).eq("restaurant_id", tenantId);
     } else {
-      await supabase.from("product_modifier_groups").insert({ group_id: groupId, product_id: productId });
+      await supabase.from("product_modifier_groups").insert({ group_id: groupId, product_id: productId, restaurant_id: tenantId });
     }
     loadData();
   }

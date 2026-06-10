@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
+import { useTenantId } from "@/lib/tenant-client";
 
 export default function ShiftsPage() {
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
@@ -34,11 +35,14 @@ export default function ShiftsPage() {
   const [cashReason, setCashReason] = useState("");
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function loadData() {
+    if (!tenantId) return;
     const { data: open } = await supabase
       .from("shifts")
       .select("*")
+      .eq("restaurant_id", tenantId)
       .eq("status", "open")
       .order("opened_at", { ascending: false })
       .limit(1)
@@ -75,6 +79,7 @@ export default function ShiftsPage() {
     const { data: past } = await supabase
       .from("shifts")
       .select("*")
+      .eq("restaurant_id", tenantId)
       .eq("status", "closed")
       .order("closed_at", { ascending: false })
       .limit(30);
@@ -83,11 +88,15 @@ export default function ShiftsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (tenantId) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   async function openShift() {
     const cash = parseFloat(openingCash);
     if (isNaN(cash) || cash < 0) { toast.error("Ingresa un monto válido"); return; }
+    if (!tenantId) return;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -99,6 +108,7 @@ export default function ShiftsPage() {
       .single();
 
     const { error } = await supabase.from("shifts").insert({
+      restaurant_id: tenantId,
       user_id: user.id,
       user_name: profile?.display_name || user.email,
       opening_cash: cash,
@@ -123,6 +133,7 @@ export default function ShiftsPage() {
       : { data: null };
 
     const { error } = await supabase.from("cash_movements").insert({
+      restaurant_id: tenantId,
       shift_id: currentShift.id,
       type: cashType,
       amount,

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
+import { useTenantId } from "@/lib/tenant-client";
 
 const GRID_COLS = 12;
 const GRID_ROWS = 8;
@@ -87,12 +88,17 @@ export default function TablesAdminPage() {
   const [y, setY] = useState(0);
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
-    const { data } = await supabase.from("floor_tables").select("*").order("sort_order");
+    if (!tenantId) return;
+    const { data } = await supabase.from("floor_tables").select("*").eq("restaurant_id", tenantId).order("sort_order");
     if (data) setTables(data);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (tenantId) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   function openDialog(t?: FloorTable) {
     if (t) {
@@ -108,14 +114,15 @@ export default function TablesAdminPage() {
 
   async function saveTable() {
     if (!name.trim()) { toast.error("Pon un nombre"); return; }
+    if (!tenantId) return;
     const payload = {
       name, zone, seats: parseInt(seats) || 4, shape, x, y,
     };
     if (editing) {
-      await supabase.from("floor_tables").update(payload).eq("id", editing.id);
+      await supabase.from("floor_tables").update(payload).eq("id", editing.id).eq("restaurant_id", tenantId);
       toast.success("Mesa actualizada");
     } else {
-      await supabase.from("floor_tables").insert({ ...payload, sort_order: tables.length });
+      await supabase.from("floor_tables").insert({ ...payload, sort_order: tables.length, restaurant_id: tenantId });
       toast.success("Mesa creada");
     }
     setShowDialog(false);
@@ -124,22 +131,25 @@ export default function TablesAdminPage() {
 
   async function deleteTable(id: string) {
     if (!confirm("¿Eliminar mesa?")) return;
-    await supabase.from("floor_tables").delete().eq("id", id);
+    if (!tenantId) return;
+    await supabase.from("floor_tables").delete().eq("id", id).eq("restaurant_id", tenantId);
     toast.success("Mesa eliminada");
     load();
   }
 
   async function toggleTable(t: FloorTable) {
-    await supabase.from("floor_tables").update({ active: !t.active }).eq("id", t.id);
+    if (!tenantId) return;
+    await supabase.from("floor_tables").update({ active: !t.active }).eq("id", t.id).eq("restaurant_id", tenantId);
     load();
   }
 
   // Drag-to-position on the grid preview
   async function moveTable(id: string, nx: number, ny: number) {
+    if (!tenantId) return;
     nx = Math.max(0, Math.min(GRID_COLS - 1, nx));
     ny = Math.max(0, Math.min(GRID_ROWS - 1, ny));
     setTables((prev) => prev.map((t) => t.id === id ? { ...t, x: nx, y: ny } : t));
-    await supabase.from("floor_tables").update({ x: nx, y: ny }).eq("id", id);
+    await supabase.from("floor_tables").update({ x: nx, y: ny }).eq("id", id).eq("restaurant_id", tenantId);
   }
 
   return (

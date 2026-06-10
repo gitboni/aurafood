@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useTenantId } from "@/lib/tenant-client";
 
 const ACTION_COLORS: Record<string, string> = {
   create: "bg-green-100 text-green-800 border-green-200",
@@ -41,9 +42,11 @@ export default function AuditPage() {
   const [actionFilter, setActionFilter] = useState<string>("");
 
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   async function load() {
-    let q = supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(500);
+    if (!tenantId) return;
+    let q = supabase.from("audit_log").select("*").eq("restaurant_id", tenantId).order("created_at", { ascending: false }).limit(500);
     if (entityFilter) q = q.eq("entity", entityFilter);
     if (actionFilter) q = q.eq("action", actionFilter);
     const { data, error } = await q;
@@ -52,7 +55,10 @@ export default function AuditPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [entityFilter, actionFilter]);
+  useEffect(() => {
+    if (tenantId) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityFilter, actionFilter, tenantId]);
 
   const filtered = search.trim()
     ? entries.filter((e) => {
