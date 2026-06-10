@@ -82,10 +82,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Define protected route prefixes (legacy + tenant-scoped)
+  // Define protected route prefixes (legacy + tenant-scoped + saas)
   const protectedSuffixes = ["/pos", "/kitchen", "/admin"];
+  const isSuperAdminRoute = pathname.startsWith("/super-admin");
   const isProtected =
     protectedSuffixes.some((s) => pathname.startsWith(s)) ||
+    isSuperAdminRoute ||
     (slugFromUrl !== null &&
       protectedSuffixes.some((s) => pathname.includes(s)));
 
@@ -107,7 +109,17 @@ export async function updateSession(request: NextRequest) {
     const role = profile?.role;
 
     if (role) {
-      // super_admin tiene acceso total
+      // /super-admin solo lo abre super_admin
+      if (isSuperAdminRoute) {
+        if (role !== "super_admin") {
+          const url = request.nextUrl.clone();
+          url.pathname = "/";
+          return NextResponse.redirect(url);
+        }
+        return supabaseResponse;
+      }
+
+      // super_admin puede entrar a cualquier ruta protegida
       if (role === "super_admin") {
         return supabaseResponse;
       }
