@@ -26,6 +26,7 @@ import { autoPrintEscPos, buildKitchenTicket, pairPrinter } from "@/lib/escpos";
 import { Printer } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useTenantId } from "@/lib/tenant-client";
 
 function playNotificationSound() {
   try {
@@ -67,6 +68,7 @@ export default function KitchenPage() {
   const firstLoadRef = useRef(true);
   const [, forceTick] = useState(0);
   const supabase = createClient();
+  const { tenantId } = useTenantId();
 
   // Re-render every 30s so ticket-aging colors stay current
   useEffect(() => {
@@ -84,10 +86,12 @@ export default function KitchenPage() {
   const [avgPrepMin, setAvgPrepMin] = useState<number | null>(null);
 
   async function loadAvgPrep() {
+    if (!tenantId) return;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const { data } = await supabase
       .from("orders")
       .select("created_at, updated_at")
+      .eq("restaurant_id", tenantId)
       .eq("status", "delivered")
       .gte("created_at", today.toISOString());
     if (!data || data.length === 0) { setAvgPrepMin(null); return; }
@@ -99,12 +103,14 @@ export default function KitchenPage() {
   }
 
   async function loadOrders() {
+    if (!tenantId) return;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const { data } = await supabase
       .from("orders")
       .select("*, order_items(*)")
+      .eq("restaurant_id", tenantId)
       .in("status", ["pending", "preparing", "ready"])
       .gte("created_at", today.toISOString())
       .order("created_at", { ascending: true });
@@ -137,7 +143,8 @@ export default function KitchenPage() {
   }
 
   useEffect(() => {
-    supabase.from("settings").select("auto_print_kitchen").eq("id", 1).maybeSingle()
+    if (!tenantId) return;
+    supabase.from("settings").select("auto_print_kitchen").eq("restaurant_id", tenantId).maybeSingle()
       .then(({ data }) => {
         const on = !!data?.auto_print_kitchen;
         autoPrintRef.current = on;
@@ -147,22 +154,32 @@ export default function KitchenPage() {
     loadOrders();
 
     const channel = supabase
-      .channel("kitchen-orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () =>
-        loadOrders()
+      .channel(`kitchen-orders-${tenantId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `restaurant_id=eq.${tenantId}`,
+        },
+        () => loadOrders()
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
 
   async function updateStatus(orderId: string, newStatus: string) {
+    if (!tenantId) return;
     const { error } = await supabase
       .from("orders")
       .update({ status: newStatus })
-      .eq("id", orderId);
+      .eq("id", orderId)
+      .eq("restaurant_id", tenantId);
 
     if (error) {
       toast.error("Error al actualizar");
@@ -179,11 +196,12 @@ export default function KitchenPage() {
   }
 
   async function confirmCancel(reason: string) {
-    if (!cancelTarget) return;
+    if (!cancelTarget || !tenantId) return;
     const { error } = await supabase
       .from("orders")
       .update({ status: "cancelled", cancel_reason: reason || "Sin motivo" })
-      .eq("id", cancelTarget);
+      .eq("id", cancelTarget)
+      .eq("restaurant_id", tenantId);
     if (error) toast.error("Error al cancelar");
     else {
       toast.success("Orden cancelada");
