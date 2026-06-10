@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     const supabase = createClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signIn, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -29,9 +29,35 @@ export default function LoginPage() {
     if (error) {
       toast.error(error.message);
       setLoading(false);
-    } else {
-      window.location.href = "/pos";
+      return;
     }
+
+    // Redirigir según el rol del usuario:
+    //   super_admin → panel global
+    //   admin de un tenant → su admin
+    //   cajero/cocina → POS / cocina
+    let dest = "/pos";
+    try {
+      const uid = signIn.user?.id;
+      if (uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, restaurant_id, restaurant:restaurants(slug)")
+          .eq("id", uid)
+          .single();
+        const slug = (profile?.restaurant as unknown as { slug?: string } | null)?.slug;
+        if (profile?.role === "super_admin") {
+          dest = "/super-admin";
+        } else if (slug) {
+          if (profile?.role === "admin") dest = `/r/${slug}/admin/menu`;
+          else if (profile?.role === "kitchen") dest = `/r/${slug}/kitchen`;
+          else dest = `/r/${slug}/pos`;
+        }
+      }
+    } catch {
+      // Si algo falla, el default /pos sigue funcionando
+    }
+    window.location.href = dest;
   }
 
   return (
