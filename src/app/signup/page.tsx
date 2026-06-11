@@ -180,6 +180,12 @@ export default function SignupPage() {
                 Inicia sesión
               </Link>
             </p>
+            <p className="text-center text-[11px] text-muted-foreground mt-2">
+              Al registrarte aceptas los{" "}
+              <Link href="/legal/terminos" className="hover:underline">Términos</Link>{" "}
+              y la{" "}
+              <Link href="/legal/privacidad" className="hover:underline">Privacidad</Link>.
+            </p>
           </CardContent>
         </Card>
       </div>

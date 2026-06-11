@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendWelcomeEmail } from "@/lib/email";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 const RESERVED = new Set([
@@ -109,6 +110,14 @@ export async function signupRestaurant(input: {
   await admin.from("settings").insert({
     restaurant_id: tenant.id,
     restaurant_name: restaurantName,
+  });
+
+  // 5. Email de bienvenida (opcional — no bloquea si no hay Resend)
+  void sendWelcomeEmail({
+    to: email,
+    ownerName: ownerName || email,
+    restaurantName,
+    slug: tenant.slug,
   });
 
   return { ok: true, slug: tenant.slug };

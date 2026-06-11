@@ -1,9 +1,39 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { ShieldCheck, LogOut } from "lucide-react";
 import { stopImpersonating } from "@/app/super-admin/restaurants/actions";
+
+// Metadata por tenant: título + manifest PWA propio del restaurante.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  let name = "AuraFood";
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data } = await supabase
+      .from("restaurants")
+      .select("name")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (data?.name) name = data.name;
+  } catch {
+    // fallback
+  }
+  return {
+    title: name,
+    manifest: `/api/manifest/${slug}`,
+    appleWebApp: { capable: true, title: name },
+  };
+}
 
 // Layout del namespace de tenant /r/[slug]/...
 // Valida que el slug existe ANTES de renderizar cualquier child.
