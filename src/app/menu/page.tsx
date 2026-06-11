@@ -4,7 +4,30 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Product, ModifierGroup, SelectedModifier } from "@/lib/types";
+import { Category, Product, ModifierGroup, SelectedModifier, Combo, ComboItem } from "@/lib/types";
+
+type ComboFull = Combo & { combo_items: ComboItem[] };
+
+// Un combo se mete al carrito como un "producto sintético" (su id
+// es el id real del combo). placeOrder detecta esos ids y los guarda
+// como combo_id en order_items (ver patch6).
+function comboAsProduct(c: ComboFull): Product {
+  return {
+    id: c.id,
+    category_id: "",
+    name: c.name,
+    description: c.description ?? null,
+    price: Number(c.price),
+    cost: 0,
+    image_url: c.image_url ?? null,
+    available: true,
+    featured: !!c.featured,
+    sort_order: c.sort_order ?? 0,
+    stock: null,
+    track_stock: false,
+    created_at: c.created_at ?? new Date().toISOString(),
+  };
+}
 import {
   Search,
   ShoppingCart,
@@ -78,6 +101,8 @@ export default function MenuPage() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   // Idioma del menú (ES por defecto, EN si el restaurante tradujo)
   const [lang, setLang] = useState<"es" | "en">("es");
+  // Combos visibles al cliente
+  const [combos, setCombos] = useState<ComboFull[]>([]);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -108,9 +133,9 @@ export default function MenuPage() {
       const tid = tenant.id;
       setTenantId(tid);
 
-      // 2. Cargar categorías + productos filtrados por tenant
+      // 2. Cargar categorías + productos + combos filtrados por tenant
       try {
-        const [catRes, prodRes] = await Promise.all([
+        const [catRes, prodRes, comboRes] = await Promise.all([
           supabase
             .from("categories")
             .select("*")
@@ -123,11 +148,19 @@ export default function MenuPage() {
             .eq("restaurant_id", tid)
             .eq("available", true)
             .order("sort_order"),
+          supabase
+            .from("combos")
+            .select("*, combo_items(*)")
+            .eq("restaurant_id", tid)
+            .eq("available", true)
+            .order("sort_order"),
         ]);
         if (catRes.error) throw catRes.error;
         if (prodRes.error) throw prodRes.error;
         if (catRes.data) setCategories(catRes.data);
         if (prodRes.data) setProducts(prodRes.data);
+        // combos: la tabla puede no existir en setups viejos → ignorar error
+        if (comboRes.data) setCombos(comboRes.data as ComboFull[]);
       } catch {
         setError(true);
       } finally {
@@ -180,6 +213,8 @@ export default function MenuPage() {
   const tipValue = +(cartSubtotal * (tipPct / 100)).toFixed(2);
   const cartTotal = +(cartSubtotal + tipValue).toFixed(2);
   const featured = products.filter((p) => p.featured);
+  // ids de combo para distinguirlos de productos en placeOrder
+  const comboIds = new Set(combos.map((c) => c.id));
 
   // When searching: flat results. Otherwise: grouped by category.
   const searchResults = search
@@ -232,10 +267,13 @@ export default function MenuPage() {
         const unit = lineUnitPrice(i);
         const modNote = (i.modifiers ?? []).map((m) => m.modifier_name).join(", ");
         const fullNote = [modNote, i.notes].filter(Boolean).join(" · ");
+        const isCombo = comboIds.has(i.product.id);
         return {
           restaurant_id: tenantId,
           order_id: order.id,
-          product_id: i.product.id,
+          // Combo → combo_id (product_id null); producto normal → product_id
+          product_id: isCombo ? null : i.product.id,
+          combo_id: isCombo ? i.product.id : null,
           product_name: i.product.name,
           quantity: i.quantity,
           unit_price: unit,
@@ -496,6 +534,48 @@ export default function MenuPage() {
         {/* ── Full menu by category ── */}
         {!searchResults && (
           <>
+            {/* Combos / Paquetes */}
+            {combos.length > 0 && (
+              <section>
+                <SectionTitle>🎁 {lang === "en" ? "Combos & Deals" : "Combos y Paquetes"}</SectionTitle>
+                <div className="grid grid-cols-1 gap-3">
+                  {combos.map((c) => (
+                      <Card key={c.id} className="overflow-hidden flex">
+                        {c.image_url && (
+                          <div className="relative w-24 shrink-0 bg-muted">
+                            <Image src={c.image_url} alt={c.name} fill className="object-cover" />
+                          </div>
+                        )}
+                        <div className="p-3 flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-display font-semibold text-sm leading-snug">{c.name}</p>
+                            <Badge className="bg-gold/20 text-gold-foreground border-0 text-[10px] shrink-0">COMBO</Badge>
+                          </div>
+                          {c.combo_items && c.combo_items.length > 0 && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                              {c.combo_items.map((i) => `${i.quantity}× ${i.product_name}`).join(" + ")}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="font-display text-primary font-bold text-base tabular">${Number(c.price).toFixed(2)}</p>
+                            {qrOrdering && (
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-primary hover:bg-primary/90 text-white px-2.5"
+                                onClick={() => addItem(comboAsProduct(c))}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                {lang === "en" ? "Add" : "Agregar"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Featured */}
             {featured.length > 0 && (
               <section>
@@ -644,6 +724,41 @@ export default function MenuPage() {
                 );
               })}
             </div>
+
+            {/* Upsell: sugeridos que no están en el carrito */}
+            {(() => {
+              const inCart = new Set(items.map((i) => i.product.id));
+              const suggestions = featured.filter((p) => !inCart.has(p.id)).slice(0, 6);
+              if (suggestions.length === 0) return null;
+              return (
+                <div className="pt-3 pb-2">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">
+                    {lang === "en" ? "You might also like" : "Quizás te gustaría agregar"}
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+                    {suggestions.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleAdd(p)}
+                        className="shrink-0 w-28 text-left rounded-lg border bg-card hover:border-primary/40 transition-colors overflow-hidden"
+                      >
+                        {p.image_url ? (
+                          <div className="relative h-16 w-full bg-muted">
+                            <Image src={p.image_url} alt={pName(p, lang)} fill className="object-cover" />
+                          </div>
+                        ) : (
+                          <div className="h-16 w-full bg-muted flex items-center justify-center text-2xl opacity-30">🍽️</div>
+                        )}
+                        <div className="p-1.5">
+                          <p className="text-[11px] font-medium leading-tight line-clamp-1">{pName(p, lang)}</p>
+                          <p className="text-[11px] text-primary font-bold">+${p.price.toFixed(2)}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </ScrollArea>
 
           <SheetFooter className="flex-col gap-3 px-4 pt-3">
