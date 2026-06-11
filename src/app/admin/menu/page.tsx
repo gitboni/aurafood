@@ -49,6 +49,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useTenantId } from "@/lib/tenant-client";
+import { PRODUCT_TAGS } from "@/lib/product-tags";
 
 export default function AdminMenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -79,6 +80,13 @@ export default function AdminMenuPage() {
   const [prodFeatured, setProdFeatured] = useState(false);
   const [prodTrackStock, setProdTrackStock] = useState(false);
   const [prodStock, setProdStock] = useState("");
+  // patch5 — atributos enriquecidos
+  const [prodTags, setProdTags] = useState<string[]>([]);
+  const [prodAllergens, setProdAllergens] = useState("");
+  const [prodCalories, setProdCalories] = useState("");
+  const [prodPortion, setProdPortion] = useState("");
+  const [prodNameEn, setProdNameEn] = useState("");
+  const [prodDescEn, setProdDescEn] = useState("");
   const [uploading, setUploading] = useState(false);
 
   // Recipe state
@@ -268,6 +276,12 @@ export default function AdminMenuPage() {
       setProdFeatured(prod.featured);
       setProdTrackStock(prod.track_stock);
       setProdStock(prod.stock?.toString() ?? "");
+      setProdTags(prod.tags ?? []);
+      setProdAllergens(prod.allergens ?? "");
+      setProdCalories(prod.calories?.toString() ?? "");
+      setProdPortion(prod.portion_size ?? "");
+      setProdNameEn(prod.name_en ?? "");
+      setProdDescEn(prod.description_en ?? "");
     } else {
       setEditingProd(null);
       setProdName("");
@@ -279,6 +293,12 @@ export default function AdminMenuPage() {
       setProdFeatured(false);
       setProdTrackStock(false);
       setProdStock("");
+      setProdTags([]);
+      setProdAllergens("");
+      setProdCalories("");
+      setProdPortion("");
+      setProdNameEn("");
+      setProdDescEn("");
     }
     setShowProdDialog(true);
   }
@@ -295,6 +315,12 @@ export default function AdminMenuPage() {
       featured: prodFeatured,
       track_stock: prodTrackStock,
       stock: prodTrackStock && prodStock ? parseInt(prodStock, 10) : null,
+      tags: prodTags,
+      allergens: prodAllergens.trim() || null,
+      calories: prodCalories ? parseInt(prodCalories, 10) : null,
+      portion_size: prodPortion.trim() || null,
+      name_en: prodNameEn.trim() || null,
+      description_en: prodDescEn.trim() || null,
     };
     if (editingProd) {
       await supabase
@@ -660,6 +686,67 @@ export default function AdminMenuPage() {
                 <p className="text-xs text-muted-foreground mt-1">Subiendo imagen...</p>
               )}
             </div>
+            {/* ── Detalles del menú (tags, alérgenos, nutrición, EN) ── */}
+            <div className="space-y-3 rounded-lg border p-3">
+              <p className="text-sm font-semibold">Detalles del menú</p>
+
+              <div>
+                <Label className="text-xs">Etiquetas dietéticas</Label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {PRODUCT_TAGS.map((t) => {
+                    const on = prodTags.includes(t.value);
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() =>
+                          setProdTags((prev) =>
+                            on ? prev.filter((x) => x !== t.value) : [...prev, t.value]
+                          )
+                        }
+                        className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                          on
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-foreground/30"
+                        }`}
+                      >
+                        {t.emoji} {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Calorías (kcal)</Label>
+                  <Input type="number" min="0" value={prodCalories}
+                    onChange={(e) => setProdCalories(e.target.value)} placeholder="Ej: 650" />
+                </div>
+                <div>
+                  <Label className="text-xs">Tamaño de porción</Label>
+                  <Input value={prodPortion}
+                    onChange={(e) => setProdPortion(e.target.value)} placeholder="Ej: 350g · 1 pza" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Alérgenos</Label>
+                <Input value={prodAllergens}
+                  onChange={(e) => setProdAllergens(e.target.value)}
+                  placeholder="Ej: Gluten, lácteos, frutos secos" />
+              </div>
+
+              <div className="pt-1 border-t">
+                <p className="text-xs text-muted-foreground mb-2">🌐 Traducción al inglés (opcional — zonas turísticas)</p>
+                <div className="space-y-2">
+                  <Input value={prodNameEn}
+                    onChange={(e) => setProdNameEn(e.target.value)} placeholder="Name in English" />
+                  <Textarea value={prodDescEn}
+                    onChange={(e) => setProdDescEn(e.target.value)} placeholder="Description in English" rows={2} />
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"

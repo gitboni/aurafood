@@ -22,6 +22,13 @@ export type Product = {
   stock: number | null;
   track_stock: boolean;
   created_at: string;
+  // patch5 — atributos enriquecidos (opcionales)
+  tags?: string[] | null;
+  allergens?: string | null;
+  calories?: number | null;
+  portion_size?: string | null;
+  name_en?: string | null;
+  description_en?: string | null;
 };
 
 export type OrderStatus = "pending" | "preparing" | "ready" | "delivered" | "cancelled";

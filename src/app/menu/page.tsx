@@ -38,9 +38,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ModifierPicker } from "@/components/modifier-picker";
 import { useCartStore, lineKeyOf, lineUnitPrice } from "@/lib/store";
 import { toast } from "sonner";
+import { TAG_BY_VALUE } from "@/lib/product-tags";
 
 const RESTAURANT_NAME = process.env.NEXT_PUBLIC_RESTAURANT_NAME ?? "El Buen Comer";
 const ENABLE_PAYMENTS = process.env.NEXT_PUBLIC_ENABLE_PAYMENTS === "true";
+
+type Lang = "es" | "en";
+// Nombre/descripción según idioma (cae a ES si no hay traducción)
+const pName = (p: Product, lang: Lang) =>
+  lang === "en" && p.name_en ? p.name_en : p.name;
+const pDesc = (p: Product, lang: Lang) =>
+  lang === "en" && p.description_en ? p.description_en : p.description;
 
 export default function MenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -68,6 +76,8 @@ export default function MenuPage() {
   const [onlinePayment, setOnlinePayment] = useState(ENABLE_PAYMENTS);
   // ── Multi-tenant: resolver el restaurant_id antes de cargar nada
   const [tenantId, setTenantId] = useState<string | null>(null);
+  // Idioma del menú (ES por defecto, EN si el restaurante tradujo)
+  const [lang, setLang] = useState<"es" | "en">("es");
 
   const { items, addItem, removeItem, updateQuantity, clearCart, total, count } =
     useCartStore();
@@ -361,6 +371,17 @@ export default function MenuPage() {
             {restaurantName}
           </h1>
           <div className="flex items-center gap-2">
+            {/* Toggle de idioma — solo si hay traducciones */}
+            {products.some((p) => p.name_en) && (
+              <button
+                type="button"
+                onClick={() => setLang((l) => (l === "es" ? "en" : "es"))}
+                className="text-xs font-semibold px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
+                title={lang === "es" ? "Switch to English" : "Cambiar a Español"}
+              >
+                {lang === "es" ? "🇬🇧 EN" : "🇪🇸 ES"}
+              </button>
+            )}
             <ThemeToggle />
             {qrOrdering && (
               <Button
@@ -456,6 +477,7 @@ export default function MenuPage() {
                     key={p.id}
                     product={p}
                     readOnly={!qrOrdering}
+                    lang={lang}
                     hasModifiers={!!modGroups[p.id]?.length}
                     cartItem={items.find((i) => i.product.id === p.id)}
                     onAdd={() => handleAdd(p)}
@@ -477,7 +499,7 @@ export default function MenuPage() {
             {/* Featured */}
             {featured.length > 0 && (
               <section>
-                <SectionTitle><Star className="h-[18px] w-[18px] text-gold" fill="currentColor" /> Destacados</SectionTitle>
+                <SectionTitle><Star className="h-[18px] w-[18px] text-gold" fill="currentColor" /> {lang === "en" ? "Featured" : "Destacados"}</SectionTitle>
                 <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x no-scrollbar">
                   {featured.map((p) => (
                     <Card
@@ -488,7 +510,7 @@ export default function MenuPage() {
                         <div className="relative h-24 overflow-hidden bg-muted">
                           <Image
                             src={p.image_url}
-                            alt={p.name}
+                            alt={pName(p, lang)}
                             fill
                             className="object-cover"
                           />
@@ -496,7 +518,7 @@ export default function MenuPage() {
                       )}
                       <div className="p-2.5 space-y-1.5">
                         <p className="font-display font-semibold text-xs leading-snug line-clamp-2">
-                          {p.name}
+                          {pName(p, lang)}
                         </p>
                         <p className="font-display text-primary font-bold text-sm tabular">
                           ${p.price.toFixed(2)}
@@ -507,7 +529,7 @@ export default function MenuPage() {
                           onClick={() => addItem(p)}
                         >
                           <Plus className="h-2.5 w-2.5 mr-1" />
-                          Agregar
+                          {lang === "en" ? "Add" : "Agregar"}
                         </Button>
                       </div>
                     </Card>
@@ -535,6 +557,7 @@ export default function MenuPage() {
                       key={p.id}
                       product={p}
                       readOnly={!qrOrdering}
+                      lang={lang}
                       hasModifiers={!!modGroups[p.id]?.length}
                       cartItem={items.find((i) => i.product.id === p.id)}
                       onAdd={() => handleAdd(p)}
@@ -756,6 +779,7 @@ function ProductCard({
   cartItem,
   hasModifiers,
   readOnly,
+  lang,
   onAdd,
   onInc,
   onDec,
@@ -764,11 +788,17 @@ function ProductCard({
   cartItem: { quantity: number } | undefined;
   hasModifiers?: boolean;
   readOnly?: boolean;
+  lang: Lang;
   onAdd: () => void;
   onInc: () => void;
   onDec: () => void;
 }) {
   const [justAdded, setJustAdded] = useState(false);
+  const name = pName(p, lang);
+  const desc = pDesc(p, lang);
+  const tags = (p.tags ?? []).map((v) => TAG_BY_VALUE.get(v)).filter(Boolean);
+  const hasDetail =
+    !!desc || tags.length > 0 || !!p.allergens || !!p.calories || !!p.portion_size;
 
   const handleAdd = () => {
     onAdd();
@@ -782,11 +812,11 @@ function ProductCard({
 
   return (
     <Card className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
-      {/* Image with Lightbox */}
+      {/* Image → detail sheet */}
       <Dialog>
-        <DialogTrigger className="relative block w-full aspect-[4/3] bg-muted overflow-hidden shrink-0 cursor-zoom-in group-hover:bg-muted/70 transition-colors text-4xl">
+        <DialogTrigger className="relative block w-full aspect-[4/3] bg-muted overflow-hidden shrink-0 cursor-pointer group-hover:bg-muted/70 transition-colors text-4xl">
           {p.image_url ? (
-            <Image src={p.image_url} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+            <Image src={p.image_url} alt={name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
           ) : (
             <span className="absolute inset-0 flex items-center justify-center opacity-30">
               🍽️
@@ -794,29 +824,49 @@ function ProductCard({
           )}
           {p.featured && (
             <Badge className="absolute top-1.5 left-1.5 bg-primary text-primary-foreground text-[10px] px-1.5 py-0 shadow-sm gap-1">
-              <Star className="h-2.5 w-2.5" fill="currentColor" /> Destacado
+              <Star className="h-2.5 w-2.5" fill="currentColor" /> {lang === "en" ? "Featured" : "Destacado"}
             </Badge>
           )}
-          {/* Subtle gradient overlay at bottom for depth */}
           <span className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          {/* Zoom hint */}
           <span className="absolute bottom-1.5 right-1.5 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <ZoomIn className="h-3.5 w-3.5" />
           </span>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-md p-1 bg-transparent border-none shadow-none">
-          <DialogTitle className="sr-only">{p.name}</DialogTitle>
-          <div className="relative aspect-square sm:aspect-video w-full rounded-xl overflow-hidden bg-black/90 backdrop-blur-sm">
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+          <DialogTitle className="sr-only">{name}</DialogTitle>
+          <div className="relative aspect-video w-full bg-muted">
             {p.image_url ? (
-              <Image src={p.image_url} alt={p.name} fill className="object-contain" />
+              <Image src={p.image_url} alt={name} fill className="object-cover" />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-6xl">🍽️</div>
+              <div className="absolute inset-0 flex items-center justify-center text-6xl opacity-30">🍽️</div>
             )}
           </div>
-          <div className="bg-card p-4 rounded-xl shadow-xl mt-2">
-            <h3 className="font-bold text-lg">{p.name}</h3>
-            {p.description && <p className="text-sm text-muted-foreground mt-1">{p.description}</p>}
-            <p className="text-primary font-bold mt-2">${p.price.toFixed(2)}</p>
+          <div className="p-5 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-display font-bold text-xl leading-tight">{name}</h3>
+              <p className="text-primary font-bold text-xl tabular-nums shrink-0">${p.price.toFixed(2)}</p>
+            </div>
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((t) => (
+                  <span key={t!.value} className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${t!.className}`}>
+                    {t!.emoji} {lang === "en" ? t!.label_en : t!.label}
+                  </span>
+                ))}
+              </div>
+            )}
+            {desc && <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>}
+            {(p.calories || p.portion_size) && (
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                {p.calories ? <span><strong className="text-foreground">{p.calories}</strong> kcal</span> : null}
+                {p.portion_size ? <span>{p.portion_size}</span> : null}
+              </div>
+            )}
+            {p.allergens && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-2.5 py-1.5">
+                ⚠️ {lang === "en" ? "Allergens" : "Alérgenos"}: {p.allergens}
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -824,11 +874,22 @@ function ProductCard({
       <div className="p-3 flex flex-col flex-1 gap-1.5">
         <div className="flex-1">
           <div className="flex items-start gap-1">
-            <p className="font-display font-semibold text-sm leading-snug flex-1">{p.name}</p>
+            <p className="font-display font-semibold text-sm leading-snug flex-1">{name}</p>
           </div>
-          {p.description && (
+          {/* Tag badges (emoji compactos) */}
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {tags.slice(0, 3).map((t) => (
+                <span key={t!.value} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${t!.className}`} title={lang === "en" ? t!.label_en : t!.label}>
+                  {t!.emoji}
+                </span>
+              ))}
+            </div>
+          )}
+          {desc && (
             <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
-              {p.description}
+              {desc}
+              {hasDetail && <span className="text-primary"> · {lang === "en" ? "more" : "ver más"}</span>}
             </p>
           )}
         </div>
@@ -856,12 +917,12 @@ function ProductCard({
               {justAdded ? (
                 <>
                   <Check className="h-3 w-3 mr-1" />
-                  Agregado
+                  {lang === "en" ? "Added" : "Agregado"}
                 </>
               ) : (
                 <>
                   <Plus className="h-3 w-3 mr-1" />
-                  {hasModifiers ? "Elegir" : "Agregar"}
+                  {hasModifiers ? (lang === "en" ? "Choose" : "Elegir") : (lang === "en" ? "Add" : "Agregar")}
                 </>
               )}
             </Button>
