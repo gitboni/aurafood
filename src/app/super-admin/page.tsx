@@ -14,6 +14,7 @@ import {
   History,
 } from "lucide-react";
 import { PlanBadge, StatusBadge } from "./badges";
+import { computeHealth, HEALTH_STYLES } from "./health";
 
 // Sin pricing real todavía (F5). Esto es solo el placeholder
 // del MRR estimado por plan — útil para ver el upside.
@@ -99,6 +100,59 @@ export default async function SuperAdminDashboard() {
   );
   const ordersToday = ordersTodayRes.count ?? 0;
   const ordersMonth = ordersMonthRes.count ?? 0;
+
+  // ── Health Score por tenant (en riesgo + hot leads) ──
+  // Para calcularlo necesitamos: última orden + órdenes 7d + órdenes 30d
+  // por tenant. Un query agrupado sería ideal, pero por simplicidad
+  // hacemos 1 query de actividad y agrupamos en memoria.
+  const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const { data: recentOrders } = await supabase
+    .from("orders")
+    .select("restaurant_id, created_at")
+    .gte("created_at", since30);
+
+  const activityByTenant = new Map<
+    string,
+    { last_order_at: string | null; orders_7d: number; orders_30d: number }
+  >();
+  for (const o of (recentOrders ?? []) as { restaurant_id: string; created_at: string }[]) {
+    const cur = activityByTenant.get(o.restaurant_id) ?? {
+      last_order_at: null, orders_7d: 0, orders_30d: 0,
+    };
+    cur.orders_30d += 1;
+    if (o.created_at >= since7) cur.orders_7d += 1;
+    if (!cur.last_order_at || o.created_at > cur.last_order_at) {
+      cur.last_order_at = o.created_at;
+    }
+    activityByTenant.set(o.restaurant_id, cur);
+  }
+
+  const tenantsWithHealth = restaurants.map((r) => {
+    const a = activityByTenant.get(r.id) ?? {
+      last_order_at: null, orders_7d: 0, orders_30d: 0,
+    };
+    const h = computeHealth({
+      status: r.status,
+      plan: r.plan,
+      created_at: r.created_at,
+      trial_ends_at: r.trial_ends_at,
+      last_order_at: a.last_order_at,
+      orders_7d: a.orders_7d,
+      orders_30d: a.orders_30d,
+    });
+    return { ...r, ...a, ...h };
+  });
+
+  const atRisk = tenantsWithHealth
+    .filter((t) => t.level === "at_risk" || t.level === "churning")
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 6);
+
+  const hotLeads = tenantsWithHealth
+    .filter((t) => t.plan === "trial" && t.status === "active" && t.orders_7d >= 1)
+    .sort((a, b) => b.orders_7d - a.orders_7d)
+    .slice(0, 6);
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -273,6 +327,77 @@ export default async function SuperAdminDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* En riesgo + Hot leads */}
+      {(atRisk.length > 0 || hotLeads.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {atRisk.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertOctagon className="h-4 w-4 text-red-500" /> En riesgo
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Tenants con poca o nula actividad reciente — buen candidato a
+                  llamada de seguimiento.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5">
+                  {atRisk.map((t) => {
+                    const style = HEALTH_STYLES[t.level];
+                    return (
+                      <Link key={t.id} href={`/super-admin/restaurants/${t.id}`}
+                        className="flex items-center gap-3 p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${style.color} tabular-nums`}>
+                          {t.score}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate text-sm">{t.name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {t.reasons[0] ?? style.label}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {hotLeads.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" /> Hot leads
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Trials con alta actividad esta semana — empuja la conversión a Pro.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5">
+                  {hotLeads.map((t) => (
+                    <Link key={t.id} href={`/super-admin/restaurants/${t.id}`}
+                      className="flex items-center gap-3 p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-white tabular-nums">
+                        {t.orders_7d}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-sm">{t.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {t.orders_7d} órdenes en 7d · {t.orders_30d} en 30d
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Trials por vencer */}
       {onTrial.length > 0 && (

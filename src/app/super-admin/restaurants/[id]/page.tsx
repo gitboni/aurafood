@@ -17,6 +17,7 @@ import { RestaurantActions } from "./restaurant-actions";
 import { InviteAdmin } from "./invite-admin";
 import { ExtendTrial, TenantNotes } from "./tenant-tools";
 import { Activity } from "lucide-react";
+import { computeHealth, HEALTH_STYLES } from "../../health";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,17 @@ export default async function RestaurantDetail({
     ? Math.floor((Date.now() - new Date(lastOrderAt).getTime()) / (24 * 60 * 60 * 1000))
     : null;
 
+  // Health Score del tenant
+  const health = computeHealth({
+    status: r.status,
+    plan: r.plan,
+    created_at: r.created_at,
+    trial_ends_at: r.trial_ends_at,
+    last_order_at: lastOrderAt,
+    orders_7d: ordersWeek,
+    orders_30d: ordersWeek, // proxy en este detalle; el dashboard tiene 30d preciso
+  });
+
   // Métricas del tenant — usamos count para no traer filas reales
   const [products, orders, customers, admins] = await Promise.all([
     supabase
@@ -119,10 +131,16 @@ export default async function RestaurantDetail({
             <h1 className="font-display text-3xl font-medium text-primary">
               {r.name}
             </h1>
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className="text-sm text-muted-foreground">/r/{r.slug}</span>
               <PlanBadge plan={r.plan} />
               <StatusBadge status={r.status} />
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${HEALTH_STYLES[health.level].color}`}
+                title={health.reasons.join(" · ")}
+              >
+                {HEALTH_STYLES[health.level].label} · {health.score}
+              </span>
               {trialDaysLeft !== null && (
                 <span className="text-xs text-amber-600 dark:text-amber-400 tabular-nums">
                   Trial: {trialDaysLeft}d
