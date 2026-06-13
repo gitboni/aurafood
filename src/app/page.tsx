@@ -16,6 +16,7 @@ import {
   History,
   LayoutDashboard,
   Table2,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ const operacion: NavLink[] = [
 // Administración — gestión y configuración (secundario, sobrio)
 const administracion: NavLink[] = [
   { href: "/admin/menu", title: "Gestión de Menú", description: "Productos y categorías", icon: LayoutDashboard },
+  { href: "/admin/profitability", title: "Rentabilidad", description: "Costos, margen y simulador", icon: Calculator },
   { href: "/admin/reports", title: "Reportes", description: "Ventas e historial", icon: BarChart3 },
   { href: "/admin/inventory", title: "Inventario", description: "Compras, stock y costos", icon: Package },
   { href: "/admin/shifts", title: "Corte de Caja", description: "Turnos y cierres", icon: Clock },
