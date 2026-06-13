@@ -110,8 +110,43 @@ export default async function TenantLayout({
     // Sin sesión: cliente normal, no se muestra el banner
   }
 
+  // ── Anuncio global activo (lectura pública por RLS)
+  let announcement: { message: string; type: string } | null = null;
+  try {
+    const supabaseAnon = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data } = await supabaseAnon
+      .from("announcements")
+      .select("message, type")
+      .eq("active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) announcement = data;
+  } catch {
+    // Tabla aún no existe (pre-patch7) o error — ignoramos
+  }
+
+  const annStyles: Record<string, string> = {
+    info: "bg-sky-500/90 text-white",
+    warning: "bg-amber-500/90 text-white",
+    maintenance: "bg-violet-500/90 text-white",
+    success: "bg-emerald-500/90 text-white",
+  };
+  const annEmoji: Record<string, string> = {
+    info: "💬", warning: "⚠️", maintenance: "🛠️", success: "✨",
+  };
+
   return (
     <>
+      {announcement && (
+        <div className={`px-4 py-1.5 text-xs flex items-center gap-2 ${annStyles[announcement.type] ?? "bg-foreground/80 text-background"}`}>
+          <span>{annEmoji[announcement.type] ?? "💬"}</span>
+          <span className="flex-1 truncate">{announcement.message}</span>
+        </div>
+      )}
       {isImpersonating && (
         <div className="sticky top-0 z-50 bg-primary text-primary-foreground px-4 py-2 flex items-center gap-3 text-sm shadow">
           <ShieldCheck className="h-4 w-4 shrink-0" />
