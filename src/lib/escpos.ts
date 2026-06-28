@@ -61,13 +61,25 @@ export function buildReceiptEscPos(order: Order, settings: Settings, paymentMeth
   parts.push(SIZE_NORMAL, BOLD_OFF);
   if (settings.address) parts.push(`${settings.address}\n`);
   if (settings.phone) parts.push(`Tel: ${settings.phone}\n`);
-  if (settings.rfc) parts.push(`RFC: ${settings.rfc}\n`);
+  if (settings.rnc) parts.push(`RNC: ${settings.rnc}\n`);
+  else if (settings.rfc) parts.push(`RFC: ${settings.rfc}\n`);
   parts.push(line("="));
 
   // Folio + date
   parts.push(ALIGN_LEFT);
   parts.push(BOLD_ON, `Folio #${String(order.order_number).padStart(4, "0")}\n`, BOLD_OFF);
   parts.push(`${dateStr}  ${timeStr}\n`);
+
+  // NCF
+  if (order.ncf) {
+    parts.push(BOLD_ON, `NCF: ${order.ncf}\n`, BOLD_OFF);
+    if (order.customer_rnc) {
+      const docLabel = order.customer_doc_type === "cedula" ? "Cedula" : order.customer_doc_type === "passport" ? "Pasaporte" : "RNC";
+      parts.push(`${docLabel} Cliente: ${order.customer_rnc}\n`);
+      if (order.customer_razon_social) parts.push(`R.Social: ${order.customer_razon_social}\n`);
+    }
+  }
+
   if (order.customer_name) parts.push(`Cliente: ${order.customer_name}\n`);
   if (order.customer_table) parts.push(`Mesa: ${order.customer_table}\n`);
   parts.push(line("-"));

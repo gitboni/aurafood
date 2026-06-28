@@ -56,6 +56,12 @@ export type Order = {
   source: OrderSource;
   location_id: string | null;
   shift_id: string | null;
+  ncf: string | null;
+  ncf_type: NCFType | null;
+  ncf_issued_at: string | null;
+  customer_rnc: string | null;
+  customer_razon_social: string | null;
+  customer_doc_type: DocType | null;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];
@@ -152,8 +158,45 @@ export type Settings = {
   loyalty_enabled: boolean;
   loyalty_points_per_currency: number;
   manager_pin: string | null;
+  rnc: string | null;
+  razon_social: string | null;
+  ncf_default_type: NCFType;
   updated_at: string;
 };
+
+// ── NCF Dominican Republic ──────────────────────────────────
+
+export type NCFType = "B01" | "B02" | "B03" | "B04" | "B11" | "B12" | "B13" | "B14" | "B15" | "B16" | "B17";
+
+export const NCF_LABELS: Record<NCFType, string> = {
+  B01: "Crédito Fiscal",
+  B02: "Consumidor Final",
+  B03: "Nota de Débito",
+  B04: "Nota de Crédito",
+  B11: "Proveedores Informales",
+  B12: "Registro Único de Ingresos",
+  B13: "Gastos Menores",
+  B14: "Régimen Especial",
+  B15: "Gubernamental",
+  B16: "Exportaciones",
+  B17: "Pagos al Exterior",
+};
+
+export type NCFSequence = {
+  id: string;
+  restaurant_id: string;
+  tipo: NCFType;
+  prefix: string;
+  range_start: number;
+  range_end: number;
+  current: number;
+  expires_at: string | null;
+  active: boolean;
+  notes: string | null;
+  created_at: string;
+};
+
+export type DocType = "rnc" | "cedula" | "passport" | "other";
 
 export type FloorTable = {
   id: string;

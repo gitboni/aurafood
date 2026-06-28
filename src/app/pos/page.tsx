@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Product, Order, ModifierGroup, SelectedModifier } from "@/lib/types";
+import { Category, Product, Order, ModifierGroup, SelectedModifier, NCFType, NCF_LABELS, DocType } from "@/lib/types";
 import {
   ShoppingBag,
   Plus,
@@ -31,7 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Receipt, type PaymentMethod } from "@/components/receipt";
 import { buildKitchenTicket, autoPrintEscPos } from "@/lib/escpos";
-import { BillingModal } from "@/components/billing-modal";
+import { BillingModal, type NCFCheckoutData } from "@/components/billing-modal";
 import { LowStockAlert } from "@/components/low-stock-alert";
 import { ModifierPicker } from "@/components/modifier-picker";
 import { ManagerPinDialog } from "@/components/manager-pin-dialog";
@@ -92,6 +92,10 @@ export default function POSPage() {
   const [autoPrintKitchen, setAutoPrintKitchen] = useState(false);
   const [loyaltyCfg, setLoyaltyCfg] = useState({ enabled: false, pointsPerCurrency: 1 });
   const [orderType, setOrderType] = useState<"dine_in" | "takeout" | "delivery">("dine_in");
+  const [ncfType, setNcfType] = useState<NCFType>("B02");
+  const [ncfCustomerRnc, setNcfCustomerRnc] = useState("");
+  const [ncfCustomerRazonSocial, setNcfCustomerRazonSocial] = useState("");
+  const [ncfCustomerDocType, setNcfCustomerDocType] = useState<DocType>("rnc");
   const [pinTarget86, setPinTarget86] = useState<Product | null>(null);
 
   // ── Orders tab state ────────────────────────────────────────
@@ -426,6 +430,23 @@ export default function POSPage() {
     const locationId = typeof window !== "undefined"
       ? localStorage.getItem("aurafood-active-location") : null;
 
+    // Assign NCF (only online)
+    let ncfNumber: string | null = null;
+    if (typeof navigator !== "undefined" && navigator.onLine && tenantId) {
+      try {
+        const { data, error } = await supabase.rpc("assign_ncf", {
+          p_restaurant_id: tenantId,
+          p_tipo: ncfType,
+        });
+        if (error) throw error;
+        ncfNumber = data;
+      } catch {
+        toast.warning("Sin secuencia NCF disponible — orden sin comprobante");
+      }
+    }
+
+    const ncfNeedsCustomer = ncfType === "B01" || ncfType === "B14" || ncfType === "B15";
+
     // Build payloads once (reused for online insert and offline queue)
     const orderPayload = {
       customer_name: customerName || null,
@@ -445,6 +466,12 @@ export default function POSPage() {
       notes: notes || null,
       source: "pos",
       restaurant_id: tenantId,
+      ncf: ncfNumber,
+      ncf_type: ncfType,
+      ncf_issued_at: ncfNumber ? new Date().toISOString() : null,
+      customer_rnc: ncfNeedsCustomer ? ncfCustomerRnc || null : null,
+      customer_razon_social: ncfNeedsCustomer ? ncfCustomerRazonSocial || null : null,
+      customer_doc_type: ncfNeedsCustomer ? ncfCustomerDocType : null,
     };
     const baseItems = items.map((i) => {
       const unit = lineUnitPrice(i);
@@ -474,6 +501,10 @@ export default function POSPage() {
       setDiscountPercent("");
       setTipAmount("");
       setOrderType("dine_in");
+      setNcfType("B02");
+      setNcfCustomerRnc("");
+      setNcfCustomerRazonSocial("");
+      setNcfCustomerDocType("rnc");
     }
 
     // ── Offline: queue locally, sync on reconnect ──
@@ -663,9 +694,35 @@ export default function POSPage() {
         <BillingModal
           order={mergeOrders(billingOrders)}
           onClose={() => setBillingOrders([])}
-          onPrint={(method, amount) =>
-            setBillingReceipt({ paymentMethod: method, amountPaid: amount })
-          }
+          onPrint={async (method, amount, ncfData) => {
+            let ncf: string | null = null;
+            if (ncfData && tenantId) {
+              try {
+                const { data, error } = await supabase.rpc("assign_ncf", {
+                  p_restaurant_id: tenantId,
+                  p_tipo: ncfData.ncfType,
+                });
+                if (error) throw error;
+                ncf = data;
+              } catch {
+                toast.warning("Sin secuencia NCF disponible");
+              }
+            }
+            const ncfNeedsCustomer = ncfData && (ncfData.ncfType === "B01" || ncfData.ncfType === "B14" || ncfData.ncfType === "B15");
+            const ncfUpdate = {
+              payment_method: method,
+              ncf,
+              ncf_type: ncfData?.ncfType || "B02",
+              ncf_issued_at: ncf ? new Date().toISOString() : null,
+              customer_rnc: ncfNeedsCustomer ? ncfData.customerRnc || null : null,
+              customer_razon_social: ncfNeedsCustomer ? ncfData.customerRazonSocial || null : null,
+              customer_doc_type: ncfNeedsCustomer ? ncfData.customerDocType : null,
+            };
+            const ids = billingOrders.map((o) => o.id);
+            await supabase.from("orders").update(ncfUpdate).in("id", ids);
+            setBillingOrders((prev) => prev.map((o) => ({ ...o, ...ncfUpdate })));
+            setBillingReceipt({ paymentMethod: method, amountPaid: amount });
+          }}
         />
       )}
 
@@ -1042,6 +1099,51 @@ export default function POSPage() {
                         Falta: ${(orderTotal - paid).toFixed(2)}
                       </p>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* NCF */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  NCF
+                </p>
+                <select
+                  value={ncfType}
+                  onChange={(e) => setNcfType(e.target.value as NCFType)}
+                  className="w-full h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
+                >
+                  <option value="B02">B02 — Consumidor Final</option>
+                  <option value="B01">B01 — Crédito Fiscal</option>
+                  <option value="B14">B14 — Régimen Especial</option>
+                  <option value="B15">B15 — Gubernamental</option>
+                </select>
+                {(ncfType === "B01" || ncfType === "B14" || ncfType === "B15") && (
+                  <div className="space-y-1.5 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex gap-1.5">
+                      <select
+                        value={ncfCustomerDocType}
+                        onChange={(e) => setNcfCustomerDocType(e.target.value as DocType)}
+                        className="h-8 rounded border border-input bg-transparent px-1.5 text-xs w-24 shrink-0"
+                      >
+                        <option value="rnc">RNC</option>
+                        <option value="cedula">Cédula</option>
+                        <option value="passport">Pasaporte</option>
+                      </select>
+                      <Input
+                        placeholder={ncfCustomerDocType === "rnc" ? "RNC" : ncfCustomerDocType === "cedula" ? "Cédula" : "Pasaporte"}
+                        value={ncfCustomerRnc}
+                        onChange={(e) => setNcfCustomerRnc(e.target.value.replace(/[^0-9A-Za-z-]/g, ""))}
+                        className="h-8 text-xs"
+                        maxLength={ncfCustomerDocType === "passport" ? 20 : 11}
+                      />
+                    </div>
+                    <Input
+                      placeholder="Razón Social"
+                      value={ncfCustomerRazonSocial}
+                      onChange={(e) => setNcfCustomerRazonSocial(e.target.value)}
+                      className="h-8 text-xs"
+                    />
                   </div>
                 )}
               </div>

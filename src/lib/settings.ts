@@ -22,6 +22,9 @@ const DEFAULT: Settings = {
   loyalty_enabled: false,
   loyalty_points_per_currency: 1,
   manager_pin: null,
+  rnc: null,
+  razon_social: null,
+  ncf_default_type: "B02",
   updated_at: new Date(0).toISOString(),
 };
 

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Order } from "@/lib/types";
+import { Order, NCFType, NCF_LABELS, DocType } from "@/lib/types";
 import { type PaymentMethod } from "@/components/receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { X, Printer } from "lucide-react";
+import { X, Printer, FileText } from "lucide-react";
 
 const PM_OPTIONS: { value: PaymentMethod; label: string; emoji: string }[] = [
   { value: "cash", label: "Efectivo", emoji: "💵" },
@@ -14,23 +14,45 @@ const PM_OPTIONS: { value: PaymentMethod; label: string; emoji: string }[] = [
   { value: "transfer", label: "Transf.", emoji: "📱" },
 ];
 
+const NCF_OPTIONS: { value: NCFType; label: string }[] = [
+  { value: "B02", label: "B02 — Consumidor Final" },
+  { value: "B01", label: "B01 — Crédito Fiscal" },
+  { value: "B14", label: "B14 — Régimen Especial" },
+  { value: "B15", label: "B15 — Gubernamental" },
+];
+
+export type NCFCheckoutData = {
+  ncfType: NCFType;
+  customerRnc: string;
+  customerRazonSocial: string;
+  customerDocType: DocType;
+};
+
 type Props = {
   order: Order;
   onClose: () => void;
-  onPrint: (method: PaymentMethod, amountPaid?: number) => void;
+  onPrint: (method: PaymentMethod, amountPaid?: number, ncfData?: NCFCheckoutData) => void;
 };
 
 export function BillingModal({ order, onClose, onPrint }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
 
+  const [ncfType, setNcfType] = useState<NCFType>("B02");
+  const [customerRnc, setCustomerRnc] = useState("");
+  const [customerRazonSocial, setCustomerRazonSocial] = useState("");
+  const [customerDocType, setCustomerDocType] = useState<DocType>("rnc");
+
   const total = Number(order.total);
   const paid = parseFloat(amountPaid);
+  const needsCustomerData = ncfType === "B01" || ncfType === "B14" || ncfType === "B15";
 
   function handlePrint() {
+    if (needsCustomerData && !customerRnc.trim()) return;
     onPrint(
       paymentMethod,
-      paymentMethod === "cash" && amountPaid ? paid : undefined
+      paymentMethod === "cash" && amountPaid ? paid : undefined,
+      { ncfType, customerRnc, customerRazonSocial, customerDocType }
     );
   }
 
@@ -96,7 +118,7 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
 
           {order.notes && (
             <p className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 p-2.5 rounded-lg">
-              📝 {order.notes}
+              {order.notes}
             </p>
           )}
 
@@ -158,9 +180,58 @@ export function BillingModal({ order, onClose, onPrint }: Props) {
             </div>
           )}
 
+          {/* NCF — Comprobante Fiscal */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" /> Comprobante Fiscal (NCF)
+            </p>
+            <select
+              value={ncfType}
+              onChange={(e) => setNcfType(e.target.value as NCFType)}
+              className="w-full h-10 rounded-xl border border-input bg-transparent px-3 text-sm"
+            >
+              {NCF_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+
+            {needsCustomerData && (
+              <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                  Datos del cliente para {NCF_LABELS[ncfType]}
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    value={customerDocType}
+                    onChange={(e) => setCustomerDocType(e.target.value as DocType)}
+                    className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm w-28 shrink-0"
+                  >
+                    <option value="rnc">RNC</option>
+                    <option value="cedula">Cédula</option>
+                    <option value="passport">Pasaporte</option>
+                  </select>
+                  <Input
+                    placeholder={customerDocType === "rnc" ? "RNC (9 u 11 dígitos)" : customerDocType === "cedula" ? "Cédula (11 dígitos)" : "Pasaporte"}
+                    value={customerRnc}
+                    onChange={(e) => setCustomerRnc(e.target.value.replace(/[^0-9A-Za-z-]/g, ""))}
+                    className="h-9"
+                    maxLength={customerDocType === "passport" ? 20 : 11}
+                  />
+                </div>
+                <Input
+                  placeholder="Razón Social / Nombre"
+                  value={customerRazonSocial}
+                  onChange={(e) => setCustomerRazonSocial(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            )}
+          </div>
+
           <Button
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-semibold"
             onClick={handlePrint}
+            disabled={needsCustomerData && !customerRnc.trim()}
           >
             <Printer className="h-5 w-5 mr-2" />
             Ver e Imprimir Factura

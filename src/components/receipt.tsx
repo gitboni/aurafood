@@ -65,6 +65,7 @@ export function Receipt({
   const R_ADDRESS = settings?.address ?? "";
   const R_PHONE = settings?.phone ?? "";
   const R_RFC = settings?.rfc ?? "";
+  const R_RNC = settings?.rnc ?? "";
   const R_LOGO = settings?.logo_url ?? null;
   const SHOW_TAX = !!settings?.tax_enabled;
   const TAX_RATE = (settings?.tax_rate ?? 18) / 100;
@@ -156,7 +157,8 @@ export function Receipt({
             )}
             <div className="text-[11px] text-gray-600 space-y-0.5">
               {R_PHONE && <p>Tel: {R_PHONE}</p>}
-              {R_RFC && <p>RFC: {R_RFC}</p>}
+              {R_RNC && <p>RNC: {R_RNC}</p>}
+              {!R_RNC && R_RFC && <p>RFC: {R_RFC}</p>}
             </div>
           </div>
 
@@ -180,6 +182,28 @@ export function Receipt({
           )}
           <Row label={`Fecha: ${dateStr}`} value="" />
           <Row label={`Hora:  ${timeStr}`} value="" />
+
+          {/* NCF */}
+          {order.ncf && (
+            <>
+              <Line />
+              <div className="text-center">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider">NCF</p>
+                <p className="font-bold text-[13px] tracking-wide">{order.ncf}</p>
+              </div>
+              {order.customer_rnc && (
+                <div className="mt-1 space-y-0.5">
+                  <Row
+                    label={`${order.customer_doc_type === "cedula" ? "Cédula" : order.customer_doc_type === "passport" ? "Pasaporte" : "RNC"} Cliente:`}
+                    value={order.customer_rnc}
+                  />
+                  {order.customer_razon_social && (
+                    <Row label="Razón Social:" value={order.customer_razon_social} />
+                  )}
+                </div>
+              )}
+            </>
+          )}
 
           {/* Customer */}
           {(order.customer_name || order.customer_table) && (

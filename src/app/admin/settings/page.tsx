@@ -41,6 +41,7 @@ export default function SettingsPage() {
         tax_inclusive: true, auto_print_kitchen: false, enable_online_payment: false,
         enable_qr_tip: false, enable_qr_ordering: true, loyalty_enabled: false, loyalty_points_per_currency: 1,
         manager_pin: null,
+        rnc: null, razon_social: null, ncf_default_type: "B02",
         updated_at: new Date().toISOString(),
       }
     );
@@ -106,6 +107,9 @@ export default function SettingsPage() {
       loyalty_enabled: settings.loyalty_enabled,
       loyalty_points_per_currency: settings.loyalty_points_per_currency,
       manager_pin: settings.manager_pin,
+      rnc: settings.rnc,
+      razon_social: settings.razon_social,
+      ncf_default_type: settings.ncf_default_type,
       updated_at: new Date().toISOString(),
     }, { onConflict: "restaurant_id" });
     setSaving(false);
@@ -204,15 +208,9 @@ export default function SettingsPage() {
               <Label>Dirección</Label>
               <Input value={settings.address ?? ""} onChange={(e) => set("address", e.target.value)} className="mt-1" placeholder="Av. Principal 123" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Teléfono</Label>
-                <Input value={settings.phone ?? ""} onChange={(e) => set("phone", e.target.value)} className="mt-1" placeholder="+52 555 123 4567" />
-              </div>
-              <div>
-                <Label>RFC (opcional)</Label>
-                <Input value={settings.rfc ?? ""} onChange={(e) => set("rfc", e.target.value)} className="mt-1" />
-              </div>
+            <div>
+              <Label>Teléfono</Label>
+              <Input value={settings.phone ?? ""} onChange={(e) => set("phone", e.target.value)} className="mt-1" placeholder="+1 809 555 1234" />
             </div>
             <Separator />
             <div className="flex items-center gap-3">
@@ -256,6 +254,62 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* ── Datos fiscales NCF — DGII República Dominicana ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              🇩🇴 Datos Fiscales — NCF (DGII)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Información requerida para emitir comprobantes fiscales en República Dominicana.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>RNC del Restaurante</Label>
+                <Input
+                  value={settings.rnc ?? ""}
+                  onChange={(e) => set("rnc", e.target.value.replace(/\D/g, "") || null)}
+                  className="mt-1 tabular"
+                  maxLength={11}
+                  placeholder="130123456"
+                />
+              </div>
+              <div>
+                <Label>Razón Social</Label>
+                <Input
+                  value={settings.razon_social ?? ""}
+                  onChange={(e) => set("razon_social", e.target.value || null)}
+                  className="mt-1"
+                  placeholder="El Buen Comer SRL"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Tipo NCF por defecto</Label>
+              <select
+                value={settings.ncf_default_type}
+                onChange={(e) => set("ncf_default_type", e.target.value as Settings["ncf_default_type"])}
+                className="mt-1 w-full h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
+              >
+                <option value="B02">B02 — Consumidor Final (default)</option>
+                <option value="B01">B01 — Crédito Fiscal</option>
+                <option value="B14">B14 — Régimen Especial</option>
+                <option value="B15">B15 — Gubernamental</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Se usa al cobrar si el cajero no elige otro. <strong>B02</strong> es lo más común para venta al público.
+              </p>
+            </div>
+            <div className="pt-2">
+              <a href="/admin/ncf" className="text-sm text-primary hover:underline font-medium">
+                → Administrar secuencias de NCF
+              </a>
+            </div>
           </CardContent>
         </Card>
 
